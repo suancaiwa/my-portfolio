@@ -4,17 +4,21 @@ import {
   ThumbsUp, MessageSquare, Share2, MoreVertical, 
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
-  Laptop, ExternalLink
+  Laptop, ExternalLink, Smile
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
-// 1. Secret Key (你提供的)
 const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
 
-// 2. API 安全码 (必须手动设置)
-// ！！！请务必去 Bmob 后台 -> 设置 -> 应用配置 -> API 安全码 中设置！！！
-// 设置完后，点击保存，然后确保这里填的和后台设置的一模一样
+// ！！！重要！！！
+// 请去 Bmob 后台 -> 设置 -> 应用配置 -> API 安全码 中设置一个代码
+// 必须与下方引号中的内容完全一致！(填好后记得在 Bmob 后台点保存)
 const BMOB_API_KEY = "0713231xX";
+
+// --- 权限配置 (新增) ---
+// 请在这里填入你（管理员）的用户名
+// 只有登录账号的用户名等于这个值时，才能看到发布界面
+const ADMIN_USERNAME = "cailixian2@gmail.com"; 
 
 // --- 错误处理工具 ---
 const getBmobErrorMsg = (err) => {
@@ -34,7 +38,6 @@ export default function App() {
   const [isLibLoaded, setIsLibLoaded] = useState(false);
   const [globalError, setGlobalError] = useState(null);
 
-  // 1. 动态加载 Bmob SDK
   useEffect(() => {
     if (window.Bmob) {
       initBmob();
@@ -50,19 +53,15 @@ export default function App() {
         try {
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
           setBmob(window.Bmob);
-          
-          // 尝试获取用户以测试连接
           const current = window.Bmob.User.current();
           if (current) setCurrentUser(current);
           
-          // 简单的连接测试
           const query = window.Bmob.Query("projects");
           query.limit(1).find().catch(err => {
             if(getBmobErrorMsg(err) === "API_SAFE_TOKEN_MISSING") {
               setGlobalError("API_SAFE_TOKEN_MISSING");
             }
           });
-
         } catch (e) {
           console.error("Bmob init error", e);
         }
@@ -98,13 +97,14 @@ export default function App() {
           isOpen={isSidebarOpen} 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
+          currentUser={currentUser} // 传入当前用户判断权限
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           <div className="max-w-[1600px] mx-auto">
             {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} setGlobalError={setGlobalError}/>}
             {activeTab === 'community' && <CommunityView Bmob={Bmob} />}
-            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} />}
+            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} />}
             {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
           </div>
         </main>
@@ -113,7 +113,7 @@ export default function App() {
   );
 }
 
-// --- 顶部导航栏 (Header) ---
+// --- 顶部导航栏 ---
 function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, searchQuery, setSearchQuery }) {
   return (
     <header className="h-14 flex items-center justify-between px-4 bg-white sticky top-0 z-50 border-b border-[#e5e5e5]">
@@ -150,7 +150,7 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
         <button className="hidden sm:block p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f]"><Grid size={24} /></button>
         <button className="hidden sm:block p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f]"><Bell size={24} /></button>
         {currentUser ? (
-          <button onClick={() => setActiveTab('studio')} className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold select-none cursor-pointer text-white shadow-sm">
+          <button onClick={() => setActiveTab('studio')} className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold select-none cursor-pointer text-white shadow-sm hover:ring-2 hover:ring-purple-200">
             {currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}
           </button>
         ) : (
@@ -163,8 +163,8 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
   );
 }
 
-// --- 左侧侧边栏 (Sidebar) ---
-function Sidebar({ isOpen, activeTab, setActiveTab }) {
+// --- 左侧侧边栏 ---
+function Sidebar({ isOpen, activeTab, setActiveTab, currentUser }) {
   if (!isOpen) return null;
   
   const MenuItem = ({ id, icon: Icon, label }) => {
@@ -180,6 +180,9 @@ function Sidebar({ isOpen, activeTab, setActiveTab }) {
     )
   };
 
+  // 判断是否管理员
+  const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
+
   return (
     <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 bg-white h-[calc(100vh-56px)]">
       <div className="border-b border-[#e5e5e5] pb-3 mb-3">
@@ -189,9 +192,9 @@ function Sidebar({ isOpen, activeTab, setActiveTab }) {
       </div>
       <div className="border-b border-[#e5e5e5] pb-3 mb-3">
         <h3 className="px-3 py-2 text-base font-bold text-[#0f0f0f] flex items-center gap-2">
-          管理 <span className="text-xs text-[#606060] font-normal">个人</span>
+          {isAdmin ? "管理员后台" : "个人中心"}
         </h3>
-        <MenuItem id="studio" icon={LayoutDashboard} label="后台管理" />
+        <MenuItem id="studio" icon={LayoutDashboard} label={isAdmin ? "管理控制台" : "我的账号"} />
       </div>
       
       <div className="px-3 py-2 text-[12px] text-[#606060] font-medium leading-relaxed">
@@ -202,7 +205,7 @@ function Sidebar({ isOpen, activeTab, setActiveTab }) {
   );
 }
 
-// --- 视图：首页 (项目展示) ---
+// --- 首页 ---
 function HomeView({ Bmob, searchQuery, setGlobalError }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -212,9 +215,7 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
       const query = Bmob.Query("projects");
       query.order("-createdAt");
       if (searchQuery) {
-         try {
-           query.equalTo("title", searchQuery); 
-         } catch(e) {}
+         try { query.equalTo("title", searchQuery); } catch(e) {}
       }
       try {
         const res = await query.find();
@@ -232,7 +233,6 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
 
   return (
     <div>
-      {/* 分类标签 */}
       <div className="flex gap-3 mb-6 overflow-x-auto pb-2 no-scrollbar">
          {['全部', 'Web开发', '移动端', '设计', 'AI工具', '笔记'].map((tag,i) => (
            <button key={i} className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${i===0 ? 'bg-[#0f0f0f] text-white' : 'bg-[#f2f2f2] text-[#0f0f0f] hover:bg-[#e5e5e5]'}`}>
@@ -245,16 +245,13 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
         {projects.length === 0 && <div className="col-span-full text-center text-[#606060] py-10">暂无项目，去后台发布一个吧</div>}
         {projects.map(p => (
           <div key={p.objectId} className="group cursor-pointer flex flex-col gap-3">
-            {/* 封面 */}
             <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
               {p.image_url ? (
                 <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={(e)=>e.target.style.display='none'}/>
               ) : <div className="w-full h-full flex items-center justify-center text-gray-400"><Code size={48}/></div>}
             </div>
             
-            {/* 信息 */}
             <div className="flex gap-3 pr-4 items-start">
-              {/* 头像 */}
               <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0 shadow-sm"></div>
               <div className="flex flex-col flex-1">
                 <h3 className="text-[#0f0f0f] font-bold text-sm sm:text-base line-clamp-2 leading-tight mb-1 group-hover:text-[#065fd4] transition-colors">
@@ -266,7 +263,6 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
                 </div>
                 {p.description && <p className="text-[#606060] text-xs mt-1 line-clamp-2">{p.description}</p>}
                 
-                {/* 按钮 */}
                 <div className="flex gap-2 mt-2">
                   {p.git_link && (
                     <a href={p.git_link} target="_blank" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}>
@@ -286,7 +282,7 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
   );
 }
 
-// --- 视图：动态墙 ---
+// --- 动态墙 ---
 function CommunityView({ Bmob }) {
   const [blogs, setBlogs] = useState([]);
   useEffect(() => {
@@ -319,9 +315,6 @@ function CommunityView({ Bmob }) {
                    <button className="flex items-center gap-2 px-2 py-1 hover:bg-[#f2f2f2] rounded-full text-[#606060]">
                       <ThumbsUp size={16} /> <span className="text-xs">点赞</span>
                    </button>
-                   <button className="flex items-center gap-2 px-2 py-1 hover:bg-[#f2f2f2] rounded-full text-[#606060]">
-                      <Share2 size={16} /> <span className="text-xs">分享</span>
-                   </button>
                 </div>
               </div>
             </div>
@@ -332,12 +325,19 @@ function CommunityView({ Bmob }) {
   );
 }
 
-// --- 视图：留言板 ---
-function DiscussionView({ Bmob }) {
+// --- 留言板 ---
+function DiscussionView({ Bmob, currentUser }) {
   const [messages, setMessages] = useState([]);
   const [name, setName] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // 如果已登录，自动填充用户名
+  useEffect(() => {
+    if (currentUser && currentUser.username) {
+      setName(currentUser.username);
+    }
+  }, [currentUser]);
 
   const fetchMessages = () => {
     const q = Bmob.Query("guestbook");
@@ -355,7 +355,9 @@ function DiscussionView({ Bmob }) {
     query.set("name", name);
     query.set("message", msg);
     query.save().then(() => {
-      setName(''); setMsg(''); fetchMessages(); setLoading(false);
+      // 只有没登录时才清空名字，否则保留
+      if(!currentUser) setName(''); 
+      setMsg(''); fetchMessages(); setLoading(false);
     }).catch(err => {
       alert("发布失败: " + getBmobErrorMsg(err)); setLoading(false);
     });
@@ -366,12 +368,20 @@ function DiscussionView({ Bmob }) {
       <div className="mb-6">
         <h2 className="text-xl font-bold mb-6 text-[#0f0f0f]">{messages.length} 条留言</h2>
         <div className="flex gap-4 mb-8">
-          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold shrink-0 text-white">?</div>
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold shrink-0 text-white">
+            {currentUser ? (currentUser.username[0].toUpperCase()) : '?'}
+          </div>
           <form onSubmit={handleSubmit} className="flex-1">
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="怎么称呼你..." className="w-full bg-transparent border-b border-[#e5e5e5] focus:border-[#0f0f0f] outline-none pb-1 mb-2 text-sm text-[#0f0f0f] placeholder-[#606060]"/>
+            <input 
+              value={name} 
+              onChange={e=>setName(e.target.value)} 
+              placeholder="怎么称呼你..." 
+              className="w-full bg-transparent border-b border-[#e5e5e5] focus:border-[#0f0f0f] outline-none pb-1 mb-2 text-sm text-[#0f0f0f] placeholder-[#606060]"
+              // 如果已登录，锁定用户名输入框（可选，防止冒充）
+              disabled={!!currentUser}
+            />
             <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="写下你的留言..." className="w-full bg-transparent border-b border-[#e5e5e5] focus:border-[#0f0f0f] outline-none pb-1 text-sm text-[#0f0f0f] placeholder-[#606060]"/>
             <div className="flex justify-end mt-2 gap-2">
-              <button type="button" onClick={()=>{setName('');setMsg('')}} className="px-3 py-1.5 rounded-full text-sm font-medium text-[#0f0f0f] hover:bg-[#f2f2f2]">取消</button>
               <button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium ${(!name || !msg) ? 'bg-[#f2f2f2] text-[#909090]' : 'bg-[#065fd4] text-white hover:bg-[#0056bf]'} transition-colors`}>发布</button>
             </div>
           </form>
@@ -404,10 +414,11 @@ function DiscussionView({ Bmob }) {
   );
 }
 
-// --- 视图：后台管理 ---
+// --- 后台/用户中心 ---
 function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  // Inputs
   const [pTitle, setPTitle] = useState('');
   const [pDesc, setPDesc] = useState('');
   const [pLink, setPLink] = useState('');
@@ -456,11 +467,12 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     }).catch(err => alert("发布失败: " + getBmobErrorMsg(err)));
   };
 
+  // 1. 未登录：显示登录/注册界面
   if (!currentUser) {
     return (
       <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-xl border border-[#e5e5e5] text-center shadow-lg animate-fadeIn">
         <Lock size={32} className="text-[#065fd4] mx-auto mb-4" />
-        <h2 className="text-xl font-bold mb-6 text-[#0f0f0f]">管理后台登录</h2>
+        <h2 className="text-xl font-bold mb-6 text-[#0f0f0f]">账号登录</h2>
         <form onSubmit={handleLogin} className="space-y-4">
           <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="用户名" className="studio-input"/>
           <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="密码" className="studio-input"/>
@@ -469,16 +481,44 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
              <button type="button" onClick={handleRegister} className="flex-1 bg-[#f2f2f2] text-[#0f0f0f] font-medium py-2 rounded hover:bg-[#e5e5e5] transition-colors">注册</button>
           </div>
         </form>
-        <p className="text-xs text-[#606060] mt-4">这里是你发布内容的地方，非管理员请勿尝试。</p>
+        <p className="text-xs text-[#606060] mt-4">登录后可参与评论。如果您是管理员，将进入后台。</p>
       </div>
     );
   }
 
+  // 2. 权限判断：如果登录的用户名不是 admin，显示普通用户界面
+  const isAdmin = currentUser.username === ADMIN_USERNAME;
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-md mx-auto mt-20 p-8 bg-white rounded-xl border border-[#e5e5e5] text-center shadow-lg animate-fadeIn">
+        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 font-bold text-2xl">
+          {currentUser.username[0].toUpperCase()}
+        </div>
+        <h2 className="text-xl font-bold mb-2 text-[#0f0f0f]">欢迎，{currentUser.username}</h2>
+        <p className="text-[#606060] mb-6">您已登录。现在您可以在留言板使用此身份发布评论。</p>
+        
+        <div className="bg-[#f9f9f9] p-4 rounded-lg mb-6 text-sm text-[#606060] text-left">
+          <p className="flex items-center gap-2 mb-2"><Smile size={16}/> 身份：普通用户</p>
+          <p className="flex items-center gap-2"><Lock size={16}/> 权限：仅评论（无法发布/删除项目）</p>
+        </div>
+
+        <button onClick={handleLogout} className="w-full border border-[#e5e5e5] text-[#0f0f0f] font-medium py-2 rounded hover:bg-[#f2f2f2] flex items-center justify-center gap-2">
+          <LogOut size={16}/> 退出登录
+        </button>
+      </div>
+    );
+  }
+
+  // 3. 只有管理员才显示：发布后台
   return (
     <div className="max-w-[1000px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f]">
       <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-bold">后台管理中心</h2>
-        <button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f]"><LogOut size={18}/> 退出</button>
+        <h2 className="text-2xl font-bold">管理员控制台</h2>
+        <div className="flex items-center gap-4">
+           <span className="text-sm text-[#606060]">当前身份: <span className="text-[#065fd4] font-bold">{currentUser.username}</span></span>
+           <button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f]"><LogOut size={18}/> 退出</button>
+        </div>
       </div>
       <div className="grid md:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-lg border border-[#e5e5e5] shadow-sm">
