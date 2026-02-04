@@ -1,249 +1,264 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Github, 
-  ExternalLink, 
-  MessageSquare, 
-  BookOpen, 
-  Code, 
-  Send, 
-  Eye, 
-  PlusCircle, 
-  Trash2, 
-  User,
-  Menu,
-  X,
-  Sparkles,
-  Loader2,
-  Lock,
-  LogOut
+  Menu, Search, Bell, Video, Grid, User, LogIn, LogOut, 
+  ThumbsUp, MessageSquare, Share2, MoreVertical, 
+  Home, Compass, PlaySquare, Clock, Upload, X,
+  Github, Code, Lock, Loader2
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  query, 
-  onSnapshot, 
-  orderBy, 
-  serverTimestamp, 
-  deleteDoc, 
-  doc,
-  updateDoc,
-  getDoc,
-  setDoc,
-  increment
-} from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut
-} from 'firebase/auth';
 
-// --- Gemini API Configuration ---
-const apiKey = ""; // API Key will be injected by the environment
+// --- 配置区域 (Bmob) ---
+// 1. Secret Key (你提供的)
+const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
 
-// --- Gemini API Helper Function ---
-async function callGemini(prompt) {
-  if (!apiKey) {
-    alert("API Key missing. Please check configuration.");
-    return null;
-  }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-  const payload = { contents: [{ parts: [{ text: prompt }] }] };
-  try {
-    for (let i = 0; i < 3; i++) {
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        const data = await response.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "AI 暂时无法响应，请稍后再试。";
-      } catch (e) {
-        if (i === 2) throw e;
-        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-      }
-    }
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    return "AI 服务繁忙，请稍后重试。";
-  }
-}
+// 2. API 安全码 (需要手动设置)
+// 请去 Bmob 后台 -> 设置 -> 应用配置 -> API 安全码 中设置一个代码
+// 然后填入下方引号中 (例如 "123456")
+const BMOB_API_KEY = "0713231xX";
 
-// --- Firebase Configuration & Initialization ---
-// 1. 你的个人配置 (来自截图)
-const myFirebaseConfig = {
-  apiKey: "AIzaSyAGciSQji6nkotPuRqcBImjqotBdQWuKns", 
-  authDomain: "myplatform-69db2.firebaseapp.com",
-  projectId: "myplatform-69db2",
-  storageBucket: "myplatform-69db2.firebasestorage.app",
-  messagingSenderId: "625057750309",
-  appId: "1:625057750309:web:22c06e0447ab2e99044ecc",
-  measurementId: "G-H5G5PTY94N"
-};
-
-// 2. 智能配置切换
-const firebaseConfig = typeof __firebase_config !== 'undefined' 
-  ? JSON.parse(__firebase_config) 
-  : myFirebaseConfig;
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// 3. 确定数据存储路径
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'my-portfolio-production';
-
-// --- Component: Main App ---
+// --- 主应用组件 ---
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [activeTab, setActiveTab] = useState('projects'); 
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [viewCount, setViewCount] = useState(0);
+  const [Bmob, setBmob] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('home'); 
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLibLoaded, setIsLibLoaded] = useState(false);
 
-  // Authentication & Page View Logic
+  // 1. 动态加载 Bmob SDK
   useEffect(() => {
-    // 监听用户状态变化
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) {
-        // 如果用户已登录（无论是匿名还是管理员），设置用户
-        setUser(currentUser);
-        incrementPageView();
-      } else {
-        // 如果没有用户登录，默认进行匿名登录
-        signInAnonymously(auth).catch(err => console.error("Anon Auth Error", err));
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  const incrementPageView = async () => {
-    const statsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats_page_views', 'total');
-    try {
-      // 只有在文档已存在时才增加，避免重复创建（简单处理）
-      // 注意：真实场景中这里需要更严谨的防刷逻辑
-      await setDoc(statsRef, { count: increment(1) }, { merge: true });
-    } catch (e) {
-      console.log("View count update skipped");
+    if (window.Bmob) {
+      initBmob();
+      return;
     }
-  };
+    const script = document.createElement('script');
+    script.src = "https://unpkg.com/hydrogen-js-sdk/dist/Bmob-2.5.1.min.js";
+    script.onload = initBmob;
+    document.head.appendChild(script);
 
-  // Listen to View Count
-  useEffect(() => {
-    const statsRef = doc(db, 'artifacts', appId, 'public', 'data', 'stats_page_views', 'total');
-    const unsub = onSnapshot(statsRef, (doc) => {
-      if (doc.exists()) setViewCount(doc.data().count);
-    });
-    return () => unsub();
+    function initBmob() {
+      if (BMOB_SECRET_KEY && BMOB_API_KEY && !BMOB_API_KEY.includes("你的")) {
+        try {
+          // Bmob 初始化: initialize(Secret Key, API 安全码)
+          window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
+          setBmob(window.Bmob);
+          
+          // 检查当前用户
+          const current = window.Bmob.User.current();
+          if (current) setCurrentUser(current);
+        } catch (e) {
+          console.error("Bmob init error", e);
+        }
+      }
+      setIsLibLoaded(true);
+    }
   }, []);
 
-  const navClass = (tab) => 
-    `cursor-pointer px-4 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 ${activeTab === tab ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-100'}`;
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
+  // 如果配置未填，显示提示屏幕
+  if (isLibLoaded && (!Bmob || BMOB_API_KEY.includes("你的"))) {
+     return <ConfigErrorScreen />;
+  }
+
+  // 加载中
+  if (!isLibLoaded) return (
+    <div className="min-h-screen bg-[#0f0f0f] flex flex-col items-center justify-center text-white gap-4">
+      <Loader2 className="w-8 h-8 animate-spin text-red-600" />
+      <p className="text-[#aaaaaa] text-sm">正在连接 Bmob 云服务...</p>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-800 flex flex-col">
-      {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2 font-bold text-xl text-indigo-600">
-              <Code className="w-6 h-6" />
-              <span>DevPortfolio</span>
-            </div>
-            {/* Desktop Nav */}
-            <nav className="hidden md:flex space-x-2">
-              <button onClick={() => setActiveTab('projects')} className={navClass('projects')}><Code className="w-4 h-4" /> 项目展示</button>
-              <button onClick={() => setActiveTab('blog')} className={navClass('blog')}><BookOpen className="w-4 h-4" /> 日常动态</button>
-              <button onClick={() => setActiveTab('guestbook')} className={navClass('guestbook')}><MessageSquare className="w-4 h-4" /> 留言墙</button>
-              <button onClick={() => setActiveTab('admin')} className={navClass('admin')}><User className="w-4 h-4" /> 管理后台</button>
-            </nav>
-            {/* Mobile Menu Button */}
-            <div className="md:hidden flex items-center">
-              <button onClick={toggleMenu} className="text-slate-600 hover:text-indigo-600">
-                {isMenuOpen ? <X /> : <Menu />}
-              </button>
-            </div>
-          </div>
-        </div>
-        {/* Mobile Nav */}
-        {isMenuOpen && (
-          <div className="md:hidden bg-white border-t border-slate-100 px-4 py-2 space-y-1 shadow-lg">
-             <button onClick={() => {setActiveTab('projects'); toggleMenu();}} className={`w-full text-left ${navClass('projects')}`}>项目展示</button>
-             <button onClick={() => {setActiveTab('blog'); toggleMenu();}} className={`w-full text-left ${navClass('blog')}`}>日常动态</button>
-             <button onClick={() => {setActiveTab('guestbook'); toggleMenu();}} className={`w-full text-left ${navClass('guestbook')}`}>留言墙</button>
-             <button onClick={() => {setActiveTab('admin'); toggleMenu();}} className={`w-full text-left ${navClass('admin')}`}>管理后台</button>
-          </div>
-        )}
-      </header>
+    <div className="min-h-screen bg-[#0f0f0f] text-white font-sans flex flex-col overflow-hidden">
+      <Header 
+        isSidebarOpen={isSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen} 
+        currentUser={currentUser}
+        setActiveTab={setActiveTab}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
 
-      {/* Main Content */}
-      <main className="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
-        {!user ? (
-          <div className="flex justify-center items-center h-64 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-            <span className="ml-2">正在连接数据服务...</span>
-          </div>
-        ) : (
-          <>
-            {activeTab === 'projects' && <ProjectsView user={user} />}
-            {activeTab === 'blog' && <BlogView user={user} />}
-            {activeTab === 'guestbook' && <GuestbookView user={user} />}
-            {activeTab === 'admin' && <AdminView user={user} />}
-          </>
-        )}
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar 
+          isOpen={isSidebarOpen} 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+        />
 
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-auto">
-        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center text-sm text-slate-500">
-          <p>© 2026 My Personal Website. All rights reserved.</p>
-          <div className="flex items-center gap-4 mt-2 md:mt-0">
-            <div className="flex items-center gap-1 bg-slate-100 px-3 py-1 rounded-full">
-              <Eye className="w-3 h-3" />
-              <span>浏览量: {viewCount}</span>
-            </div>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+          <div className="max-w-[1600px] mx-auto">
+            {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} />}
+            {activeTab === 'community' && <CommunityView Bmob={Bmob} />}
+            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} />}
+            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
           </div>
-        </div>
-      </footer>
+        </main>
+      </div>
     </div>
   );
 }
 
-// --- View: Projects ---
-function ProjectsView({ user }) {
-  const [projects, setProjects] = useState([]);
-  useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => setProjects(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-  }, []);
+// --- 组件部分 ---
+
+function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, searchQuery, setSearchQuery }) {
+  return (
+    <header className="h-14 flex items-center justify-between px-4 bg-[#0f0f0f] sticky top-0 z-50 border-b border-[#272727]">
+      <div className="flex items-center gap-4">
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#272727] rounded-full transition-colors">
+          <Menu size={24} />
+        </button>
+        <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveTab('home')}>
+          <div className="bg-white rounded-lg p-0.5 flex items-center justify-center h-6 w-8">
+            <Video size={16} fill="#FF0000" stroke="#FF0000" />
+          </div>
+          <span className="text-xl font-bold tracking-tighter font-sans">DevTube</span>
+        </div>
+      </div>
+
+      <div className="hidden md:flex flex-1 max-w-[600px] mx-4">
+        <div className="flex w-full group">
+          <div className="flex-1 flex items-center bg-[#121212] border border-[#303030] rounded-l-full px-4 py-1 ml-8 group-focus-within:border-[#1c62b9] transition-colors">
+            <input 
+              type="text" 
+              placeholder="搜索项目" 
+              className="w-full bg-transparent outline-none text-white placeholder-gray-400 text-base"
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <button className="bg-[#222222] border border-l-0 border-[#303030] px-5 rounded-r-full hover:bg-[#303030] transition-colors tooltip" title="搜索">
+            <Search size={20} className="text-gray-400" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-4">
+        <button className="hidden sm:block p-2 hover:bg-[#272727] rounded-full"><Video size={24} /></button>
+        <button className="hidden sm:block p-2 hover:bg-[#272727] rounded-full"><Bell size={24} /></button>
+        {currentUser ? (
+          <button onClick={() => setActiveTab('studio')} className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold select-none cursor-pointer">
+            {currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}
+          </button>
+        ) : (
+          <button onClick={() => setActiveTab('studio')} className="flex items-center gap-2 border border-[#303030] text-[#3ea6ff] px-3 py-1.5 rounded-full hover:bg-[#263850] text-sm font-medium transition-colors">
+            <User size={20} className="w-5 h-5" /> 登录
+          </button>
+        )}
+      </div>
+    </header>
+  );
+}
+
+function Sidebar({ isOpen, activeTab, setActiveTab }) {
+  if (!isOpen) return null; // 移动端或折叠状态
+  
+  const MenuItem = ({ id, icon: Icon, label, activeIcon: ActiveIcon }) => {
+    const isActive = activeTab === id;
+    const TheIcon = isActive && ActiveIcon ? ActiveIcon : Icon;
+    return (
+      <button 
+        onClick={() => setActiveTab(id)} 
+        className={`w-full flex items-center gap-5 px-3 py-2.5 rounded-lg mb-1 transition-colors ${isActive ? 'bg-[#272727] font-medium' : 'hover:bg-[#272727]'}`}
+      >
+        <TheIcon size={24} className={isActive ? "text-white fill-white" : "text-gray-300"} strokeWidth={isActive ? 2.5 : 2}/>
+        <span className="text-sm tracking-wide truncate">{label}</span>
+      </button>
+    )
+  };
 
   return (
-    <div className="space-y-6 animate-fadeIn">
-      <div className="text-center mb-10">
-        <h2 className="text-3xl font-bold text-slate-800">我的项目</h2>
-        <p className="text-slate-500 mt-2">这里展示了我近期开发的一些有趣的作品。</p>
+    <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3">
+      <div className="border-b border-[#303030] pb-3 mb-3">
+        <MenuItem id="home" icon={Home} label="首页" />
+        <MenuItem id="community" icon={Compass} label="社区" />
+        <MenuItem id="discussion" icon={MessageSquare} label="评论区" />
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {projects.length === 0 && <div className="col-span-full text-center py-20 text-slate-400">暂无项目。</div>}
-        {projects.map(project => (
-          <div key={project.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow border border-slate-100 overflow-hidden flex flex-col">
-            <div className="h-48 bg-slate-200 relative overflow-hidden group">
-               {project.imageUrl ? (
-                 <img src={project.imageUrl} alt={project.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" onError={(e) => e.target.style.display='none'} />
-               ) : <div className="w-full h-full flex items-center justify-center text-slate-400 bg-slate-100">No Image</div>}
+      <div className="border-b border-[#303030] pb-3 mb-3">
+        <h3 className="px-3 py-2 text-base font-bold text-white flex items-center gap-2">
+          我的频道 <span className="text-xs text-[#aaaaaa] font-normal">后台</span>
+        </h3>
+        <MenuItem id="studio" icon={PlaySquare} label="工作室" />
+      </div>
+      
+      <div className="px-3 py-2 text-[10px] text-[#aaaaaa] font-medium leading-relaxed">
+        <p className="mb-2">关于 开发者 联系方式</p>
+        <p>© 2026 DevTube Portfolio</p>
+      </div>
+    </aside>
+  );
+}
+
+function HomeView({ Bmob, searchQuery }) {
+  const [projects, setProjects] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const query = Bmob.Query("projects");
+      query.order("-createdAt");
+      // 注意：Bmob 免费版对模糊查询支持可能有限，这里做兼容处理
+      if (searchQuery) {
+         try {
+           // 尝试简单查询
+           query.equalTo("title", searchQuery); 
+         } catch(e) {}
+      }
+      try {
+        const res = await query.find();
+        if(Array.isArray(res)) setProjects(res);
+      } catch(e) { console.error(e); }
+      setLoading(false);
+    };
+    fetch();
+  }, [Bmob, searchQuery]);
+
+  if (loading) return <div className="py-20 text-center text-[#aaaaaa] flex flex-col items-center gap-2"><Loader2 className="animate-spin"/>加载内容...</div>;
+
+  return (
+    <div>
+      {/* 分类标签栏 (装饰) */}
+      <div className="flex gap-3 mb-6 overflow-x-auto pb-2 no-scrollbar">
+         {['全部', 'React', 'Vue', '前端', '后端', '全栈', 'Web3', 'AI'].map((tag,i) => (
+           <button key={i} className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${i===0 ? 'bg-white text-black' : 'bg-[#272727] text-white hover:bg-[#3f3f3f]'}`}>
+             {tag}
+           </button>
+         ))}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 animate-fadeIn">
+        {projects.length === 0 && <div className="col-span-full text-center text-[#aaaaaa] py-10">暂无项目，快去工作室发布吧</div>}
+        {projects.map(p => (
+          <div key={p.objectId} className="group cursor-pointer flex flex-col gap-3">
+            {/* 封面 */}
+            <div className="relative aspect-video rounded-xl overflow-hidden bg-[#1f1f1f]">
+              {p.image_url ? (
+                <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={(e)=>e.target.style.display='none'}/>
+              ) : <div className="w-full h-full flex items-center justify-center text-gray-600"><Code size={48}/></div>}
+              {/* 时长角标 (装饰) */}
+              <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs font-bold px-1 py-0.5 rounded">DEV</div>
             </div>
-            <div className="p-6 flex flex-col flex-grow">
-              <h3 className="text-xl font-bold text-slate-800 mb-2">{project.title}</h3>
-              <p className="text-slate-600 text-sm mb-4 line-clamp-3 flex-grow whitespace-pre-line">{project.description}</p>
-              <div className="mt-auto pt-4 border-t border-slate-100 flex gap-3">
-                {project.gitLink && <a href={project.gitLink} target="_blank" className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-indigo-600"><Github className="w-4 h-4" /> 源码</a>}
-                {project.demoLink && <a href={project.demoLink} target="_blank" className="flex items-center gap-1 text-sm font-medium text-slate-700 hover:text-indigo-600"><ExternalLink className="w-4 h-4" /> 演示</a>}
+            
+            {/* 信息 */}
+            <div className="flex gap-3 pr-4 items-start">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-600 to-purple-600 shrink-0"></div>
+              <div className="flex flex-col">
+                <h3 className="text-white font-bold text-sm sm:text-base line-clamp-2 leading-tight mb-1 group-hover:text-blue-400 transition-colors">{p.title}</h3>
+                <div className="text-[#aaaaaa] text-xs sm:text-sm flex flex-col">
+                   <span className="hover:text-white transition-colors">Developer</span>
+                   <span>1.2万次观看 • {p.createdAt.split(' ')[0]}</span>
+                </div>
+                {p.description && <p className="text-[#aaaaaa] text-xs mt-1 line-clamp-1">{p.description}</p>}
+                
+                {/* 按钮 */}
+                <div className="flex gap-2 mt-2">
+                  {p.git_link && (
+                    <a href={p.git_link} target="_blank" className="text-xs bg-[#272727] hover:bg-[#3f3f3f] px-2 py-1 rounded text-white flex gap-1 items-center transition-colors" onClick={e=>e.stopPropagation()}>
+                      <Github size={12}/> 源码
+                    </a>
+                  )}
+                </div>
+              </div>
+              <div className="ml-auto">
+                 <MoreVertical size={20} className="text-white opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
           </div>
@@ -253,110 +268,43 @@ function ProjectsView({ user }) {
   );
 }
 
-// --- View: Blog ---
-function BlogView({ user }) {
+function CommunityView({ Bmob }) {
   const [blogs, setBlogs] = useState([]);
   useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => setBlogs(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-  }, []);
+    const q = Bmob.Query("blogs");
+    q.order("-createdAt");
+    q.find().then(res => { if(Array.isArray(res)) setBlogs(res); });
+  }, [Bmob]);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 animate-fadeIn">
-      <div className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-800">日常动态</h2>
-        <p className="text-slate-500 mt-1">记录生活点滴与技术思考。</p>
-      </div>
-      <div className="space-y-8">
-        {blogs.length === 0 && <p className="text-center text-slate-400 py-10">暂无动态。</p>}
-        {blogs.map((blog) => (
-          <div key={blog.id} className="relative pl-8 border-l-2 border-slate-200 pb-2">
-            <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-indigo-100 border-2 border-indigo-600"></div>
-            <div className="mb-1 text-sm text-slate-400 font-mono">
-              {blog.createdAt?.seconds ? new Date(blog.createdAt.seconds * 1000).toLocaleDateString() : '刚刚'}
-            </div>
-            <div className="bg-white p-5 rounded-lg shadow-sm border border-slate-100">
-               <p className="text-slate-800 whitespace-pre-wrap leading-relaxed">{blog.content}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// --- View: Guestbook ---
-function GuestbookView({ user }) {
-  const [messages, setMessages] = useState([]);
-  const [newName, setNewName] = useState('');
-  const [newMessage, setNewMessage] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [summary, setSummary] = useState('');
-  const [isSummarizing, setIsSummarizing] = useState(false);
-
-  useEffect(() => {
-    const q = query(collection(db, 'artifacts', appId, 'public', 'data', 'guestbook'), orderBy('createdAt', 'desc'));
-    return onSnapshot(q, (snapshot) => setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!newName.trim() || !newMessage.trim()) return;
-    setIsSubmitting(true);
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'guestbook'), {
-      name: newName, message: newMessage, createdAt: serverTimestamp()
-    });
-    setNewName(''); setNewMessage(''); setIsSubmitting(false);
-  };
-
-  const handleAISummary = async () => {
-    if (messages.length === 0) return;
-    setIsSummarizing(true);
-    const textToSummarize = messages.slice(0, 20).map(m => `${m.name}: ${m.message}`).join("\n");
-    const prompt = `请用一段简短、温暖的中文，总结以下留言墙上访客们的主要反馈和情绪。如果留言大多是正面的，请体现出大家的喜爱之情：\n\n${textToSummarize}`;
-    const result = await callGemini(prompt);
-    if (result) setSummary(result);
-    setIsSummarizing(false);
-  };
-
-  return (
-    <div className="max-w-2xl mx-auto animate-fadeIn">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-slate-800">留言墙</h2>
-        <p className="text-slate-500 mt-2">欢迎留下你的足迹，无需登录。</p>
-      </div>
-      {messages.length > 0 && (
-        <div className="mb-8 bg-indigo-50 rounded-xl p-4 border border-indigo-100">
-           <div className="flex justify-between items-start">
-             <div className="flex gap-2 text-indigo-800 font-medium items-center mb-2">
-               <Sparkles className="w-4 h-4" /> <span>AI 留言总结</span>
-             </div>
-             {!summary && (
-               <button onClick={handleAISummary} disabled={isSummarizing} className="text-xs bg-white text-indigo-600 px-3 py-1 rounded-full border border-indigo-200 hover:bg-indigo-50 transition-colors flex items-center gap-1">
-                 {isSummarizing ? <Loader2 className="w-3 h-3 animate-spin"/> : <Sparkles className="w-3 h-3" />} {isSummarizing ? "分析中..." : "生成总结"}
-               </button>
-             )}
-           </div>
-           {summary ? <p className="text-sm text-indigo-700 leading-relaxed animate-fadeIn">{summary}</p> : <p className="text-xs text-indigo-400">点击按钮，让 AI 帮你读读大家的留言...</p>}
+    <div className="max-w-[850px] mx-auto pt-4 animate-fadeIn">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-xl font-bold">最新动态</h2>
+        <div className="flex gap-4 text-sm text-[#aaaaaa]">
+           <span className="text-white font-medium cursor-pointer">全部</span>
+           <span className="hover:text-white cursor-pointer">项目更新</span>
         </div>
-      )}
-      <div className="bg-white p-6 rounded-xl shadow-md border border-slate-100 mb-10">
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">昵称</label><input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="怎么称呼你？" className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none" required /></div>
-          <div><label className="block text-sm font-medium text-slate-700 mb-1">留言内容</label><textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="说点什么吧..." rows="3" className="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none resize-none" required></textarea></div>
-          <button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50">{isSubmitting ? '发送中...' : <><Send className="w-4 h-4" /> 发布留言</>}</button>
-        </form>
       </div>
       <div className="space-y-4">
-        {messages.map(msg => (
-          <div key={msg.id} className="bg-white p-4 rounded-lg border border-slate-100 shadow-sm flex gap-4">
-            <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-lg">{msg.name ? msg.name.charAt(0).toUpperCase() : '?'}</div>
-            <div className="flex-grow">
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="font-bold text-slate-800">{msg.name}</span>
-                <span className="text-xs text-slate-400">{msg.createdAt?.seconds ? new Date(msg.createdAt.seconds * 1000).toLocaleDateString() : '刚刚'}</span>
+        {blogs.map(b => (
+          <div key={b.objectId} className="border border-[#303030] rounded-xl p-4 bg-[#0f0f0f] hover:bg-[#1f1f1f] transition-colors">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 rounded-full bg-purple-600 shrink-0 flex items-center justify-center font-bold text-sm">D</div>
+              <div className="flex-1">
+                <div className="flex gap-2 items-center mb-1">
+                  <span className="font-bold text-sm">Developer Channel</span>
+                  <span className="text-[#aaaaaa] text-xs">{b.createdAt}</span>
+                </div>
+                <p className="text-sm whitespace-pre-wrap leading-relaxed mb-3">{b.content}</p>
+                <div className="flex gap-2">
+                   <button className="flex items-center gap-2 px-2 py-1 hover:bg-[#303030] rounded-full text-[#aaaaaa]">
+                      <ThumbsUp size={16} /> <span className="text-xs">12</span>
+                   </button>
+                   <button className="flex items-center gap-2 px-2 py-1 hover:bg-[#303030] rounded-full text-[#aaaaaa]">
+                      <Share2 size={16} />
+                   </button>
+                </div>
               </div>
-              <p className="text-slate-600 text-sm">{msg.message}</p>
             </div>
           </div>
         ))}
@@ -365,183 +313,213 @@ function GuestbookView({ user }) {
   );
 }
 
-// --- View: Admin (Protected) ---
-function AdminView({ user }) {
-  // Login State
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
+function DiscussionView({ Bmob }) {
+  const [messages, setMessages] = useState([]);
+  const [name, setName] = useState('');
+  const [msg, setMsg] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // Project/Blog State
-  const [pTitle, setPTitle] = useState('');
-  const [pDesc, setPDesc] = useState('');
-  const [pGit, setPGit] = useState('');
-  const [pImg, setPImg] = useState('');
-  const [isOptimizingProject, setIsOptimizingProject] = useState(false);
-  const [bContent, setBContent] = useState('');
-  const [isExpandingBlog, setIsExpandingBlog] = useState(false);
-  const [projects, setProjects] = useState([]);
-  const [blogs, setBlogs] = useState([]);
-
-  // Fetch Logic (Only runs if admin logged in)
-  useEffect(() => {
-    if (user.isAnonymous) return; // Don't fetch admin data for guests
-    const unsubP = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), orderBy('createdAt', 'desc')), (snap) => setProjects(snap.docs.map(d => ({id: d.id, ...d.data()}))));
-    const unsubB = onSnapshot(query(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), orderBy('createdAt', 'desc')), (snap) => setBlogs(snap.docs.map(d => ({id: d.id, ...d.data()}))));
-    return () => { unsubP(); unsubB(); };
-  }, [user]);
-
-  // Login Handler
-  const handleLogin = async (e) => {
-    e.preventDefault();
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      setLoginError('');
-    } catch (error) {
-      setLoginError('登录失败：账号或密码错误');
-    }
+  const fetchMessages = () => {
+    const q = Bmob.Query("guestbook");
+    q.order("-createdAt");
+    q.find().then(res => { if(Array.isArray(res)) setMessages(res); });
   };
 
-  // Logout Handler
-  const handleLogout = async () => {
-    await signOut(auth);
-    // Sign in anonymously again so they can still browse
-    await signInAnonymously(auth);
-  };
+  useEffect(() => { fetchMessages(); }, [Bmob]);
 
-  // Content Handlers
-  const handleAddProject = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'projects'), {
-      title: pTitle, description: pDesc, gitLink: pGit, imageUrl: pImg, createdAt: serverTimestamp()
+    if (!name.trim() || !msg.trim()) return;
+    setLoading(true);
+    const query = Bmob.Query("guestbook");
+    query.set("name", name);
+    query.set("message", msg);
+    query.save().then(() => {
+      setName(''); setMsg(''); fetchMessages(); setLoading(false);
+    }).catch(err => {
+      alert("发布失败: " + JSON.stringify(err)); setLoading(false);
     });
-    setPTitle(''); setPDesc(''); setPGit(''); setPImg(''); alert('项目已发布！');
-  };
-  const handleAddBlog = async (e) => {
-    e.preventDefault();
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'blogs'), { content: bContent, createdAt: serverTimestamp() });
-    setBContent(''); alert('动态已发布！');
-  };
-  const handleDelete = async (collectionName, id) => {
-    if(confirm('确定要删除吗？')) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', collectionName, id));
-  };
-  const handleAIOptimizeProject = async () => {
-    if (!pDesc) return alert("请先填写一些简单的项目描述！");
-    setIsOptimizingProject(true);
-    const result = await callGemini(`请重写以下项目描述，强调技术亮点，适合展示在个人作品集中：\n\n${pDesc}`);
-    if (result) setPDesc(result);
-    setIsOptimizingProject(false);
-  };
-  const handleAIExpandBlog = async () => {
-    if (!bContent) return alert("请先写一点点想法！");
-    setIsExpandingBlog(true);
-    const result = await callGemini(`请将以下想法扩写成一篇轻松自然的短博文（100字左右）：\n\n${bContent}`);
-    if (result) setBContent(result);
-    setIsExpandingBlog(false);
   };
 
-  // 1. 如果是匿名用户，显示登录框
-  if (user.isAnonymous) {
-    return (
-      <div className="max-w-md mx-auto mt-10 animate-fadeIn">
-        <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100">
-          <div className="text-center mb-6">
-            <div className="bg-indigo-100 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 text-indigo-600">
-              <Lock className="w-6 h-6" />
+  return (
+    <div className="max-w-[850px] mx-auto pt-2 animate-fadeIn">
+      <div className="mb-6">
+        <h2 className="text-xl font-bold mb-6">{messages.length} 条评论</h2>
+        <div className="flex gap-4 mb-8">
+          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold shrink-0">?</div>
+          <form onSubmit={handleSubmit} className="flex-1">
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="添加昵称..." className="w-full bg-transparent border-b border-[#303030] focus:border-white outline-none pb-1 mb-2 text-sm text-white placeholder-[#aaaaaa]"/>
+            <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="发表评论..." className="w-full bg-transparent border-b border-[#303030] focus:border-white outline-none pb-1 text-sm text-white placeholder-[#aaaaaa]"/>
+            <div className="flex justify-end mt-2 gap-2">
+              <button type="button" onClick={()=>{setName('');setMsg('')}} className="px-3 py-1.5 rounded-full text-sm font-medium text-white hover:bg-[#272727]">取消</button>
+              <button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium ${(!name || !msg) ? 'bg-[#272727] text-[#717171]' : 'bg-[#3ea6ff] text-black hover:bg-[#65b8ff]'} transition-colors`}>评论</button>
             </div>
-            <h2 className="text-xl font-bold text-slate-800">管理员登录</h2>
-            <p className="text-slate-500 text-sm mt-2">请输入您的 Firebase 账号以管理网站。</p>
-          </div>
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">邮箱</label>
-              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="admin-input" required />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">密码</label>
-              <input type="password" value={password} onChange={e=>setPassword(e.target.value)} className="admin-input" required />
-            </div>
-            {loginError && <p className="text-red-500 text-sm">{loginError}</p>}
-            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition-colors">登录</button>
           </form>
         </div>
+      </div>
+      <div className="space-y-6">
+        {messages.map(m => (
+          <div key={m.objectId} className="flex gap-4 group">
+            <div className="w-10 h-10 rounded-full bg-green-700 flex items-center justify-center font-bold shrink-0 text-sm">
+              {m.name ? m.name[0].toUpperCase() : 'A'}
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                 <span className="text-xs font-bold text-white bg-[#272727] px-1.5 py-0.5 rounded-full hover:bg-[#3f3f3f] cursor-pointer">@{m.name}</span>
+                 <span className="text-xs text-[#aaaaaa] hover:text-white cursor-pointer">{m.createdAt}</span>
+              </div>
+              <p className="text-sm text-white leading-relaxed">{m.message}</p>
+              
+              <div className="flex items-center gap-3 mt-2">
+                 <div className="flex items-center gap-1 cursor-pointer">
+                    <ThumbsUp size={14} className="text-[#aaaaaa] hover:text-white"/>
+                 </div>
+                 <div className="flex items-center gap-1 cursor-pointer">
+                    <ThumbsUp size={14} className="text-[#aaaaaa] hover:text-white rotate-180 mt-1"/>
+                 </div>
+                 <span className="text-xs font-medium text-[#aaaaaa] hover:text-white cursor-pointer ml-2">回复</span>
+              </div>
+            </div>
+            <MoreVertical size={20} className="text-white opacity-0 group-hover:opacity-100 cursor-pointer" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StudioView({ Bmob, currentUser, setCurrentUser }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  // Inputs
+  const [pTitle, setPTitle] = useState('');
+  const [pDesc, setPDesc] = useState('');
+  const [pLink, setPLink] = useState('');
+  const [pImg, setPImg] = useState('');
+  const [bContent, setBContent] = useState('');
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    Bmob.User.login(username, password).then(res => {
+      setCurrentUser(res);
+    }).catch(err => {
+      alert("登录失败: " + (err.error || JSON.stringify(err)));
+    });
+  };
+
+  const handleRegister = () => {
+    let params = { username: username, password: password };
+    Bmob.User.register(params).then(res => {
+      alert("注册成功，请登录");
+    }).catch(err => alert("注册失败: " + (err.error || JSON.stringify(err))));
+  }
+
+  const handleLogout = () => {
+    Bmob.User.logout();
+    setCurrentUser(null);
+  };
+
+  const handleAddProject = (e) => {
+    e.preventDefault();
+    const query = Bmob.Query("projects");
+    query.set("title", pTitle);
+    query.set("description", pDesc);
+    query.set("git_link", pLink);
+    query.set("image_url", pImg);
+    query.save().then(res => {
+      alert("项目发布成功"); setPTitle(''); setPDesc('');
+    }).catch(err => alert("发布失败"));
+  };
+
+  const handleAddBlog = (e) => {
+    e.preventDefault();
+    const query = Bmob.Query("blogs");
+    query.set("content", bContent);
+    query.save().then(res => {
+      alert("动态发布成功"); setBContent('');
+    }).catch(err => alert("发布失败"));
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="max-w-md mx-auto mt-20 p-8 bg-[#1f1f1f] rounded-xl border border-[#303030] text-center animate-fadeIn">
+        <Lock size={32} className="text-[#3ea6ff] mx-auto mb-4" />
+        <h2 className="text-xl font-bold mb-6">Studio 登录</h2>
+        <form onSubmit={handleLogin} className="space-y-4">
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="用户名" className="studio-input"/>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="密码" className="studio-input"/>
+          <div className="flex gap-2">
+             <button type="submit" className="flex-1 bg-[#3ea6ff] text-black font-medium py-2 rounded hover:bg-[#65b8ff] transition-colors">登录</button>
+             <button type="button" onClick={handleRegister} className="flex-1 bg-[#272727] text-white font-medium py-2 rounded hover:bg-[#3f3f3f] transition-colors">注册</button>
+          </div>
+        </form>
+        <p className="text-xs text-gray-500 mt-4">首次使用请直接输入账号密码点击「注册」</p>
       </div>
     );
   }
 
-  // 2. 如果已登录，显示完整的管理后台
   return (
-    <div className="max-w-4xl mx-auto space-y-12 animate-fadeIn pb-20">
-      <div className="flex justify-between items-center bg-indigo-50 border-l-4 border-indigo-500 p-4 rounded-r-lg">
-        <p className="text-indigo-900 text-sm font-medium">
-          欢迎回来，管理员！
-        </p>
-        <button onClick={handleLogout} className="text-sm bg-white text-indigo-600 px-3 py-1 rounded border border-indigo-200 hover:bg-indigo-50 flex items-center gap-1">
-          <LogOut className="w-4 h-4" /> 退出登录
-        </button>
+    <div className="max-w-[1000px] mx-auto pt-6 animate-fadeIn">
+      <div className="flex justify-between items-center mb-8">
+        <h2 className="text-2xl font-bold">频道内容 (后台)</h2>
+        <button onClick={handleLogout} className="flex items-center gap-2 text-[#aaaaaa] hover:text-white"><LogOut size={18}/> 退出</button>
       </div>
-
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* Add Project */}
-        <div className="bg-white p-6 rounded-xl shadow border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><PlusCircle className="w-5 h-5 text-indigo-600" /> 发布新项目</h3>
-          <form onSubmit={handleAddProject} className="space-y-3">
-            <input className="admin-input" placeholder="项目标题" value={pTitle} onChange={e=>setPTitle(e.target.value)} required />
-            <div className="relative">
-              <textarea className="admin-input pr-10" placeholder="项目描述..." value={pDesc} onChange={e=>setPDesc(e.target.value)} rows="4" required />
-              <button type="button" onClick={handleAIOptimizeProject} disabled={isOptimizingProject} className="absolute bottom-2 right-2 text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1.5 rounded-md"><Sparkles className="w-4 h-4"/></button>
-            </div>
-            <input className="admin-input" placeholder="Git/Demo 链接" value={pGit} onChange={e=>setPGit(e.target.value)} />
-            <input className="admin-input" placeholder="封面图片 URL" value={pImg} onChange={e=>setPImg(e.target.value)} />
-            <button type="submit" className="admin-btn">发布项目</button>
-          </form>
-          <div className="mt-6 border-t pt-4">
-             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">管理已发布项目</h4>
-             <ul className="space-y-2 max-h-40 overflow-y-auto">
-               {projects.map(p => (
-                 <li key={p.id} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded">
-                   <span className="truncate w-40">{p.title}</span>
-                   <button onClick={() => handleDelete('projects', p.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
-                 </li>
-               ))}
-             </ul>
+      <div className="grid md:grid-cols-2 gap-6">
+        <div className="bg-[#1f1f1f] p-6 rounded-md border border-[#303030]">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold">上传视频 (项目)</h3>
+            <Upload className="text-[#3ea6ff]" size={20}/>
           </div>
+          <form onSubmit={handleAddProject} className="space-y-4">
+            <input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="标题 (必填)" className="studio-input"/>
+            <textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="说明" className="studio-input h-24"/>
+            <input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="缩略图 URL" className="studio-input"/>
+            <input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="视频链接 (Git/Demo)" className="studio-input"/>
+            <button className="bg-[#3ea6ff] text-black font-medium px-4 py-2 rounded text-sm uppercase hover:bg-[#65b8ff] transition-colors">发布</button>
+          </form>
         </div>
-
-        {/* Add Blog */}
-        <div className="bg-white p-6 rounded-xl shadow border border-slate-100">
-          <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><PlusCircle className="w-5 h-5 text-indigo-600" /> 发布日常动态</h3>
-          <form onSubmit={handleAddBlog} className="space-y-3">
-            <div className="relative">
-              <textarea className="admin-input pr-10" placeholder="今天发生了什么？" value={bContent} onChange={e=>setBContent(e.target.value)} rows="6" required />
-              <button type="button" onClick={handleAIExpandBlog} disabled={isExpandingBlog} className="absolute bottom-2 right-2 text-indigo-500 hover:text-indigo-700 bg-indigo-50 p-1.5 rounded-md"><Sparkles className="w-4 h-4"/></button>
-            </div>
-            <button type="submit" className="admin-btn">发布动态</button>
-          </form>
-          <div className="mt-6 border-t pt-4">
-             <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">管理已发布动态</h4>
-             <ul className="space-y-2 max-h-40 overflow-y-auto">
-               {blogs.map(b => (
-                 <li key={b.id} className="flex justify-between items-center text-sm bg-slate-50 p-2 rounded">
-                   <span className="truncate w-40">{b.content}</span>
-                   <button onClick={() => handleDelete('blogs', b.id)} className="text-red-500 hover:bg-red-50 p-1 rounded"><Trash2 size={14}/></button>
-                 </li>
-               ))}
-             </ul>
+        <div className="bg-[#1f1f1f] p-6 rounded-md border border-[#303030]">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="font-bold">创建帖子 (动态)</h3>
+            <MessageSquare className="text-[#3ea6ff]" size={20}/>
           </div>
+          <form onSubmit={handleAddBlog} className="space-y-4">
+            <textarea value={bContent} onChange={e=>setBContent(e.target.value)} placeholder="分享你的想法..." className="studio-input h-32"/>
+            <button className="bg-[#3ea6ff] text-black font-medium px-4 py-2 rounded text-sm uppercase hover:bg-[#65b8ff] transition-colors">发布</button>
+          </form>
         </div>
       </div>
     </div>
   );
 }
 
-// --- Styles ---
+function ConfigErrorScreen() {
+  return (
+    <div className="min-h-screen bg-[#0f0f0f] text-white flex items-center justify-center p-4">
+      <div className="max-w-md text-center bg-[#1f1f1f] p-8 rounded-xl border border-[#303030]">
+        <Lock size={64} className="mx-auto text-red-600 mb-4" />
+        <h1 className="text-2xl font-bold mb-2">需要 API 安全码</h1>
+        <p className="text-[#aaaaaa] mb-6">
+          Bmob 的 API 安全码需要你手动设置。
+          <br/><br/>
+          请前往 Bmob 后台 → 设置 → 应用配置 → API 安全码。
+          <br/>
+          设置一个密码，然后填入代码中的 BMOB_API_KEY。
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const style = document.createElement('style');
 style.innerHTML = `
-  .admin-input { @apply w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 outline-none; }
-  .admin-btn { @apply w-full bg-slate-800 text-white py-2 rounded-lg hover:bg-slate-900 text-sm font-medium transition-colors; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+  .custom-scrollbar::-webkit-scrollbar-track { bg: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #717171; border-radius: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #a0a0a0; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .studio-input { @apply w-full bg-[#121212] border border-[#303030] rounded p-2 text-white outline-none focus:border-[#3ea6ff] placeholder-gray-500 text-sm focus:bg-black transition-colors; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
   .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
 `;
 document.head.appendChild(style);
