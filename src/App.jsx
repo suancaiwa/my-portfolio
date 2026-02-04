@@ -510,38 +510,90 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     );
   }
 
-  // 3. 只有管理员才显示：发布后台
+  // 3. 只有管理员才显示：发布后台 (UI 已根据需求重构)
   return (
-    <div className="max-w-[1000px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f]">
-      <div className="flex justify-between items-center mb-8">
-        <h2 className="text-2xl font-bold">管理员控制台</h2>
+    <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f] px-4">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-8 border-b border-[#e5e5e5] pb-4">
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <LayoutDashboard size={28} className="text-red-600"/>
+          管理员控制台
+        </h2>
         <div className="flex items-center gap-4">
-           <span className="text-sm text-[#606060]">当前身份: <span className="text-[#065fd4] font-bold">{currentUser.username}</span></span>
-           <button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f]"><LogOut size={18}/> 退出</button>
+           <span className="text-sm text-[#606060] hidden sm:inline">当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span>
+           <button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f] transition-colors font-medium text-sm border border-[#e5e5e5] px-3 py-1.5 rounded-full hover:bg-[#f2f2f2]"><LogOut size={16}/> 退出</button>
         </div>
       </div>
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-[#e5e5e5] shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold flex items-center gap-2"><Upload size={20} className="text-[#065fd4]"/> 发布项目</h3>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+        
+        {/* Card 1: Publish Project */}
+        <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]">
+            <div className="p-2 bg-blue-50 rounded-full">
+              <Upload size={20} className="text-[#065fd4]"/>
+            </div>
+            <h3 className="font-bold text-lg text-[#0f0f0f]">发布项目</h3>
           </div>
-          <form onSubmit={handleAddProject} className="space-y-4">
-            <input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="项目标题 (必填)" className="studio-input"/>
-            <textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="项目介绍..." className="studio-input h-24"/>
-            <input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="封面图链接 (可选)" className="studio-input"/>
-            <input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="源码/演示链接" className="studio-input"/>
-            <button className="bg-[#065fd4] text-white font-medium px-4 py-2 rounded text-sm uppercase hover:bg-[#0056bf] transition-colors w-full">发布项目</button>
+          
+          <form onSubmit={handleAddProject} className="flex-1 flex flex-col gap-4">
+            <div>
+              <label className="block text-xs font-medium text-[#606060] mb-1.5">项目标题</label>
+              <input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="输入项目标题..." className="studio-input"/>
+            </div>
+            
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-[#606060] mb-1.5">项目介绍</label>
+              <textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="描述一下这个项目的功能和亮点..." className="studio-input h-32 resize-none"/>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-[#606060] mb-1.5">封面图链接</label>
+                <input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="https://..." className="studio-input"/>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接</label>
+                <input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input"/>
+              </div>
+            </div>
+
+            <div className="mt-auto pt-4">
+              <button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99]">
+                发布项目
+              </button>
+            </div>
           </form>
         </div>
-        <div className="bg-white p-6 rounded-lg border border-[#e5e5e5] shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold flex items-center gap-2"><PenTool size={20} className="text-[#065fd4]"/> 写动态</h3>
+
+        {/* Card 2: Write Blog */}
+        <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
+          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]">
+            <div className="p-2 bg-green-50 rounded-full">
+              <PenTool size={20} className="text-[#0fa958]"/> 
+            </div>
+            <h3 className="font-bold text-lg text-[#0f0f0f]">发布动态</h3>
           </div>
-          <form onSubmit={handleAddBlog} className="space-y-4">
-            <textarea value={bContent} onChange={e=>setBContent(e.target.value)} placeholder="分享你的想法或更新..." className="studio-input h-32"/>
-            <button className="bg-[#065fd4] text-white font-medium px-4 py-2 rounded text-sm uppercase hover:bg-[#0056bf] transition-colors w-full">发布动态</button>
+          
+          <form onSubmit={handleAddBlog} className="flex-1 flex flex-col gap-4">
+            <div className="flex-1 flex flex-col">
+              <label className="block text-xs font-medium text-[#606060] mb-1.5">动态内容</label>
+              <textarea 
+                value={bContent} 
+                onChange={e=>setBContent(e.target.value)} 
+                placeholder="分享今天的技术思考或生活点滴..." 
+                className="studio-input flex-1 resize-none min-h-[200px]"
+              />
+            </div>
+            
+            <div className="mt-auto pt-4">
+              <button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99]">
+                发布动态
+              </button>
+            </div>
           </form>
         </div>
+
       </div>
     </div>
   );
@@ -579,7 +631,7 @@ style.innerHTML = `
   .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #aaa; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
-  .studio-input { @apply w-full bg-[#f9f9f9] border border-[#ccc] rounded p-2 text-[#0f0f0f] outline-none focus:border-[#065fd4] placeholder-gray-500 text-sm focus:bg-white transition-colors; }
+  .studio-input { @apply w-full bg-[#f9f9f9] border border-[#ccc] rounded p-3 text-[#0f0f0f] outline-none focus:border-[#065fd4] placeholder-gray-500 text-sm focus:bg-white transition-colors focus:ring-1 focus:ring-[#065fd4]; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
   .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
   .tooltip:hover::after {
