@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Menu, Search, Bell, Grid, User, LogIn, LogOut, 
   ThumbsUp, MessageSquare, Share2, MoreVertical, 
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
-  Laptop, ExternalLink, Smile
+  Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
@@ -17,7 +17,7 @@ const BMOB_API_KEY = "0713231xX";
 
 // --- 权限配置 (新增) ---
 // 请在这里填入你（管理员）的用户名
-// 只有登录账号的用户名等于这个值时，才能看到发布界面
+// 只有登录账号的用户名等于这个值时，才能看到发布界面和删除按钮
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
 
 // --- 错误处理工具 ---
@@ -97,13 +97,13 @@ export default function App() {
           isOpen={isSidebarOpen} 
           activeTab={activeTab} 
           setActiveTab={setActiveTab} 
-          currentUser={currentUser} // 传入当前用户判断权限
+          currentUser={currentUser} 
         />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
           <div className="max-w-[1600px] mx-auto">
-            {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} setGlobalError={setGlobalError}/>}
-            {activeTab === 'community' && <CommunityView Bmob={Bmob} />}
+            {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError}/>}
+            {activeTab === 'community' && <CommunityView Bmob={Bmob} currentUser={currentUser} />}
             {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} />}
             {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
           </div>
@@ -180,7 +180,6 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser }) {
     )
   };
 
-  // 判断是否管理员
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
 
   return (
@@ -206,28 +205,42 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser }) {
 }
 
 // --- 首页 ---
-function HomeView({ Bmob, searchQuery, setGlobalError }) {
+function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
+
+  const fetchProjects = async () => {
+    const query = Bmob.Query("projects");
+    query.order("-createdAt");
+    if (searchQuery) {
+       try { query.equalTo("title", searchQuery); } catch(e) {}
+    }
+    try {
+      const res = await query.find();
+      if(Array.isArray(res)) setProjects(res);
+    } catch(e) { 
+      console.error(e); 
+      if(getBmobErrorMsg(e) === "API_SAFE_TOKEN_MISSING") setGlobalError("API_SAFE_TOKEN_MISSING");
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
-    const fetch = async () => {
-      const query = Bmob.Query("projects");
-      query.order("-createdAt");
-      if (searchQuery) {
-         try { query.equalTo("title", searchQuery); } catch(e) {}
-      }
-      try {
-        const res = await query.find();
-        if(Array.isArray(res)) setProjects(res);
-      } catch(e) { 
-        console.error(e); 
-        if(getBmobErrorMsg(e) === "API_SAFE_TOKEN_MISSING") setGlobalError("API_SAFE_TOKEN_MISSING");
-      }
-      setLoading(false);
-    };
-    fetch();
+    fetchProjects();
   }, [Bmob, searchQuery]);
+
+  const handleDelete = async (e, id) => {
+    e.stopPropagation();
+    if (!confirm("确定要删除这个项目吗？")) return;
+    const query = Bmob.Query("projects");
+    try {
+      await query.destroy(id);
+      fetchProjects(); // 刷新列表
+    } catch(err) {
+      alert("删除失败: " + err.error);
+    }
+  };
 
   if (loading) return <div className="py-20 text-center text-[#606060] flex flex-col items-center gap-2"><Loader2 className="animate-spin text-gray-400"/>加载项目...</div>;
 
@@ -244,11 +257,22 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 animate-fadeIn">
         {projects.length === 0 && <div className="col-span-full text-center text-[#606060] py-10">暂无项目，去后台发布一个吧</div>}
         {projects.map(p => (
-          <div key={p.objectId} className="group cursor-pointer flex flex-col gap-3">
+          <div key={p.objectId} className="group cursor-pointer flex flex-col gap-3 relative">
+            {/* 封面 */}
             <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
               {p.image_url ? (
                 <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={(e)=>e.target.style.display='none'}/>
               ) : <div className="w-full h-full flex items-center justify-center text-gray-400"><Code size={48}/></div>}
+              {/* 删除按钮 (仅管理员可见) */}
+              {isAdmin && (
+                <button 
+                  onClick={(e) => handleDelete(e, p.objectId)}
+                  className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10"
+                  title="删除项目"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
             </div>
             
             <div className="flex gap-3 pr-4 items-start">
@@ -283,13 +307,28 @@ function HomeView({ Bmob, searchQuery, setGlobalError }) {
 }
 
 // --- 动态墙 ---
-function CommunityView({ Bmob }) {
+function CommunityView({ Bmob, currentUser }) {
   const [blogs, setBlogs] = useState([]);
-  useEffect(() => {
+  const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
+
+  const fetchBlogs = () => {
     const q = Bmob.Query("blogs");
     q.order("-createdAt");
     q.find().then(res => { if(Array.isArray(res)) setBlogs(res); });
-  }, [Bmob]);
+  };
+
+  useEffect(() => { fetchBlogs(); }, [Bmob]);
+
+  const handleDelete = async (id) => {
+    if (!confirm("确定要删除这条动态吗？")) return;
+    const query = Bmob.Query("blogs");
+    try {
+      await query.destroy(id);
+      fetchBlogs();
+    } catch(err) {
+      alert("删除失败");
+    }
+  };
 
   return (
     <div className="max-w-[850px] mx-auto pt-4 animate-fadeIn">
@@ -302,7 +341,16 @@ function CommunityView({ Bmob }) {
       </div>
       <div className="space-y-4">
         {blogs.map(b => (
-          <div key={b.objectId} className="border border-[#e5e5e5] rounded-xl p-4 bg-white hover:shadow-md transition-shadow">
+          <div key={b.objectId} className="border border-[#e5e5e5] rounded-xl p-4 bg-white hover:shadow-md transition-shadow relative group">
+            {isAdmin && (
+              <button 
+                onClick={() => handleDelete(b.objectId)}
+                className="absolute top-4 right-4 text-gray-400 hover:text-red-600 transition-colors"
+                title="删除动态"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
             <div className="flex gap-3">
               <div className="w-10 h-10 rounded-full bg-purple-600 shrink-0 flex items-center justify-center font-bold text-sm text-white">D</div>
               <div className="flex-1">
@@ -331,8 +379,8 @@ function DiscussionView({ Bmob, currentUser }) {
   const [name, setName] = useState('');
   const [msg, setMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
 
-  // 如果已登录，自动填充用户名
   useEffect(() => {
     if (currentUser && currentUser.username) {
       setName(currentUser.username);
@@ -347,6 +395,17 @@ function DiscussionView({ Bmob, currentUser }) {
 
   useEffect(() => { fetchMessages(); }, [Bmob]);
 
+  const handleDelete = async (id) => {
+    if (!confirm("确定要删除这条留言吗？")) return;
+    const query = Bmob.Query("guestbook");
+    try {
+      await query.destroy(id);
+      fetchMessages();
+    } catch(err) {
+      alert("删除失败");
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim() || !msg.trim()) return;
@@ -355,9 +414,13 @@ function DiscussionView({ Bmob, currentUser }) {
     query.set("name", name);
     query.set("message", msg);
     query.save().then(() => {
-      // 只有没登录时才清空名字，否则保留
       if(!currentUser) setName(''); 
-      setMsg(''); fetchMessages(); setLoading(false);
+      setMsg(''); 
+      setLoading(false);
+      fetchMessages();
+      // 简单的新增评论效果：滚动到顶部 (因为是按时间倒序排列，新评论在最上面)
+      // 可以考虑加一个 Toast 提示
+      alert("评论发布成功！");
     }).catch(err => {
       alert("发布失败: " + getBmobErrorMsg(err)); setLoading(false);
     });
@@ -377,19 +440,20 @@ function DiscussionView({ Bmob, currentUser }) {
               onChange={e=>setName(e.target.value)} 
               placeholder="怎么称呼你..." 
               className="w-full bg-transparent border-b border-[#e5e5e5] focus:border-[#0f0f0f] outline-none pb-1 mb-2 text-sm text-[#0f0f0f] placeholder-[#606060]"
-              // 如果已登录，锁定用户名输入框（可选，防止冒充）
               disabled={!!currentUser}
             />
             <input value={msg} onChange={e=>setMsg(e.target.value)} placeholder="写下你的留言..." className="w-full bg-transparent border-b border-[#e5e5e5] focus:border-[#0f0f0f] outline-none pb-1 text-sm text-[#0f0f0f] placeholder-[#606060]"/>
             <div className="flex justify-end mt-2 gap-2">
-              <button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium ${(!name || !msg) ? 'bg-[#f2f2f2] text-[#909090]' : 'bg-[#065fd4] text-white hover:bg-[#0056bf]'} transition-colors`}>发布</button>
+              <button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium ${(!name || !msg) ? 'bg-[#f2f2f2] text-[#909090]' : 'bg-[#065fd4] text-white hover:bg-[#0056bf]'} transition-colors`}>
+                {loading ? '发布中...' : '发布'}
+              </button>
             </div>
           </form>
         </div>
       </div>
       <div className="space-y-6">
         {messages.map(m => (
-          <div key={m.objectId} className="flex gap-4 group">
+          <div key={m.objectId} className="flex gap-4 group relative">
             <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center font-bold shrink-0 text-sm text-white">
               {m.name ? m.name[0].toUpperCase() : 'A'}
             </div>
@@ -407,6 +471,15 @@ function DiscussionView({ Bmob, currentUser }) {
                  <span className="text-xs font-medium text-[#606060] hover:text-[#0f0f0f] cursor-pointer ml-2">回复</span>
               </div>
             </div>
+            {isAdmin && (
+              <button 
+                onClick={() => handleDelete(m.objectId)}
+                className="absolute top-0 right-0 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                title="删除留言"
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
           </div>
         ))}
       </div>
@@ -424,6 +497,10 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const [pLink, setPLink] = useState('');
   const [pImg, setPImg] = useState('');
   const [bContent, setBContent] = useState('');
+  
+  // File Upload State
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleLogin = (e) => {
     e.preventDefault();
@@ -446,15 +523,49 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     setCurrentUser(null);
   };
 
-  const handleAddProject = (e) => {
+  const handleFileUpload = async (file) => {
+    if(!file) return null;
+    setIsUploading(true);
+    try {
+      // 1. 创建文件对象
+      const bmobFile = Bmob.File(file.name, file);
+      // 2. 上传
+      const res = await bmobFile.save();
+      // 3. 获取 URL (Bmob 返回的是一个数组)
+      if(res && res.length > 0) {
+        setIsUploading(false);
+        return res[0].url; 
+      }
+    } catch(e) {
+      console.error("Upload error", e);
+      alert("图片上传失败");
+      setIsUploading(false);
+    }
+    return null;
+  };
+
+  const handleAddProject = async (e) => {
     e.preventDefault();
+    let imageUrl = pImg; // 默认为文本框输入的 URL
+
+    // 如果选择了文件，优先上传文件
+    if (fileInputRef.current && fileInputRef.current.files[0]) {
+      const uploadedUrl = await handleFileUpload(fileInputRef.current.files[0]);
+      if (uploadedUrl) {
+        imageUrl = uploadedUrl;
+      } else {
+        return; // 上传失败终止
+      }
+    }
+
     const query = Bmob.Query("projects");
     query.set("title", pTitle);
     query.set("description", pDesc);
     query.set("git_link", pLink);
-    query.set("image_url", pImg);
+    query.set("image_url", imageUrl);
     query.save().then(res => {
-      alert("项目发布成功"); setPTitle(''); setPDesc('');
+      alert("项目发布成功"); setPTitle(''); setPDesc(''); setPImg(''); setPLink('');
+      if(fileInputRef.current) fileInputRef.current.value = "";
     }).catch(err => alert("发布失败: " + getBmobErrorMsg(err)));
   };
 
@@ -486,7 +597,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     );
   }
 
-  // 2. 权限判断：如果登录的用户名不是 admin，显示普通用户界面
+  // 2. 权限判断
   const isAdmin = currentUser.username === ADMIN_USERNAME;
 
   if (!isAdmin) {
@@ -510,7 +621,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     );
   }
 
-  // 3. 只有管理员才显示：发布后台 (UI 已根据需求重构)
+  // 3. 管理员后台
   return (
     <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f] px-4">
       {/* Header */}
@@ -527,7 +638,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         
-        {/* Card 1: Publish Project */}
+        {/* 发布项目 */}
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]">
             <div className="p-2 bg-blue-50 rounded-full">
@@ -549,24 +660,42 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-[#606060] mb-1.5">封面图链接</label>
-                <input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="https://..." className="studio-input"/>
-              </div>
-              <div>
                 <label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接</label>
                 <input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input"/>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[#606060] mb-1.5">封面图片</label>
+                {/* 两个选项：上传文件 或 输入 URL */}
+                <div className="flex flex-col gap-2">
+                  <div className="relative">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={() => setPImg('')} // 清空URL输入
+                    />
+                    <div className="studio-input flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-50">
+                      <ImageIcon size={16}/> <span className="text-xs">点击上传本地图片</span>
+                    </div>
+                  </div>
+                  <div className="text-center text-xs text-gray-400">- 或 -</div>
+                  <input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="输入图片 URL..." className="studio-input"/>
+                </div>
               </div>
             </div>
 
             <div className="mt-auto pt-4">
-              <button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99]">
-                发布项目
+              <button 
+                disabled={isUploading}
+                className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400"
+              >
+                {isUploading ? '正在上传图片...' : '发布项目'}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Card 2: Write Blog */}
+        {/* 发布动态 */}
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]">
             <div className="p-2 bg-green-50 rounded-full">
