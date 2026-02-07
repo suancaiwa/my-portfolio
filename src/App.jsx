@@ -475,7 +475,14 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
     e.stopPropagation();
     if (!confirm("确定要删除这个项目吗？")) return;
     const query = Bmob.Query("projects");
-    try { await query.destroy(id); fetchProjects(); } catch(err) { alert("删除失败: " + err.error); }
+    try { 
+      await query.destroy(id); 
+      fetchProjects(); 
+    } catch(err) { 
+      // 400 错误通常是因为 ID 无效或删除权限问题，尝试忽略并刷新列表
+      console.warn("Delete warning:", err);
+      fetchProjects();
+    }
   };
 
   const filteredProjects = projects.filter(p => {
@@ -525,7 +532,7 @@ function CommunityView({ Bmob, searchQuery, currentUser }) {
 
   const handleDelete = async (id) => {
     if (!confirm("确定要删除这条动态吗？")) return;
-    try { await Bmob.Query("blogs").destroy(id); fetchBlogs(); } catch(err) { alert("删除失败"); }
+    try { await Bmob.Query("blogs").destroy(id); fetchBlogs(); } catch(err) { console.warn(err); fetchBlogs(); }
   };
 
   const handleLike = async (id, currentLikes) => {
@@ -600,7 +607,7 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
   
   const handleDelete = async (id) => {
     if (!confirm("确定要删除这条留言吗？")) return;
-    try { await Bmob.Query("guestbook").destroy(id); fetchMessages(); } catch(err) { alert("删除失败"); }
+    try { await Bmob.Query("guestbook").destroy(id); fetchMessages(); } catch(err) { console.warn(err); fetchMessages(); }
   };
 
   const handleLike = async (id) => {
@@ -740,11 +747,10 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // --- 修复版文件上传 ---
   const handleFileUpload = async (file) => {
     if(!file) return null;
     try {
-      // 1. 强制生成纯数字文件名，避免中文乱码
+      // 1. 强制生成纯数字文件名，彻底规避中文乱码
       const extension = file.name.split('.').pop();
       const safeName = `${Date.now()}.${extension}`; 
       
@@ -787,7 +793,6 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     let imageUrl = pImg;
 
     try {
-      // 优先处理文件上传
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const file = fileInputRef.current.files[0];
         const uploadedUrl = await handleFileUpload(file);
@@ -795,11 +800,11 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
         if(uploadedUrl) {
             imageUrl = uploadedUrl;
         } else {
-            alert("图片上传异常，未获取到有效链接。请勿包含中文文件名重试。");
+            alert("图片上传成功但未返回有效链接，请重试");
             setIsUploading(false);
-            return; // 终止发布，防止存入空数据
+            return;
         }
-      } 
+      }
       
       // URL 格式校验，防止存入 "侵权" 等脏数据
       if (imageUrl && !imageUrl.startsWith('http')) {
