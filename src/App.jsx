@@ -336,7 +336,7 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f]"><Menu size={24} /></button>
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveTab('home')}>
           <div className="bg-red-600 rounded-lg p-1 flex items-center justify-center"><Laptop size={16} className="text-white" /></div>
-          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">DevSpace</span>
+          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">Nine Ice</span>
         </div>
       </div>
       <div className="hidden md:flex flex-1 max-w-[600px] mx-4">
@@ -450,8 +450,8 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
           <Eye size={14} /> 
           <span>全站浏览: {totalViews}</span>
         </div>
-        <p className="mb-1">关于 • 开发者 • 联系方式</p>
-        <p>© 2026 DevSpace</p>
+        <p className="mb-1">关于 • 开发者 • cailixian2@gmail.com</p>
+        <p>© 2026 Nine Ice</p>
       </div>
     </aside>
   );
