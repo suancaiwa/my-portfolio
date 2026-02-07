@@ -5,7 +5,7 @@ import {
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
-  Eye, CheckCircle, Cat, Zap, Award
+  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
@@ -49,32 +49,26 @@ const InteractivePet = ({ currentUser, xp, level }) => {
     setTimeout(() => setMessage(""), 3000);
   };
 
-  // 计算当前等级进度百分比
-  // 简单线性进度： (XP / 10000) * 100
   const progress = Math.min(100, Math.floor((xp / MAX_XP) * 100));
 
   return (
     <div className="fixed bottom-20 right-6 z-50 flex flex-col items-end pointer-events-none">
-      {/* 对话框 */}
       {message && (
         <div className="bg-white border border-[#e5e5e5] px-4 py-2 rounded-xl rounded-br-none shadow-lg mb-2 animate-fadeIn max-w-[200px] text-xs text-[#0f0f0f]">
           {message}
         </div>
       )}
       
-      {/* 宠物本体 */}
       <div 
         onClick={handlePetClick}
         className={`pointer-events-auto cursor-pointer bg-white p-3 rounded-full shadow-xl border-2 border-[#065fd4] hover:bg-blue-50 transition-transform ${isBouncing ? 'animate-bounce' : ''} relative group`}
       >
         <Cat size={32} className="text-[#065fd4]" />
         
-        {/* 等级角标 */}
         <div className="absolute -top-1 -left-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 rounded-full border border-white shadow-sm">
           Lv.{level || 1}
         </div>
 
-        {/* 经验条 Tooltip */}
         <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
           <div className="mb-1 flex justify-between gap-4">
             <span>经验值</span>
@@ -148,7 +142,15 @@ export default function App() {
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
           setBmob(window.Bmob);
           const current = window.Bmob.User.current();
-          if (current) setCurrentUser(current);
+          // 如果有缓存用户，尝试同步最新数据
+          if (current) {
+             setCurrentUser(current);
+             // 默默拉取一次最新数据以防本地过时
+             const query = window.Bmob.Query("_User");
+             query.get(current.objectId).then(userObj => {
+                setCurrentUser(prev => ({...prev, xp: userObj.xp || 0, level: userObj.level || 1, lastCheckInDate: userObj.lastCheckInDate}));
+             }).catch(e => console.log("Sync user failed", e));
+          }
           updateSiteViews(window.Bmob);
         } catch (e) {
           console.error("Bmob init error", e);
@@ -179,41 +181,81 @@ export default function App() {
     } catch (e) { console.log("Stats skipped"); }
   };
 
-  // --- XP 系统核心逻辑 ---
-  const handleAddXP = async (amount = 1) => {
+  // --- 核心修复：更稳健的经验更新逻辑 ---
+  const handleAddXP = async (amount = 1, extraUpdates = {}) => {
     if (!Bmob || !currentUser) return;
     
     try {
       const userQuery = Bmob.Query("_User");
-      // 获取最新用户数据
-      const user = await userQuery.get(currentUser.objectId);
+      // 1. 务必先重新获取最新的 User 对象，确保基于后端真实数据计算
+      const userObj = await userQuery.get(currentUser.objectId);
       
-      let currentXP = user.xp || 0;
-      let currentLevel = user.level || 1;
+      let currentXP = userObj.xp || 0;
+      let currentLevel = userObj.level || 1;
 
-      // 封顶检查
-      if (currentLevel >= MAX_LEVEL) return;
+      if (currentLevel >= MAX_LEVEL) {
+          // 即使满级，如果有 extraUpdates (如签到日期) 也要执行保存
+          if (Object.keys(extraUpdates).length > 0) {
+             Object.keys(extraUpdates).forEach(key => userObj.set(key, extraUpdates[key]));
+             await userObj.save();
+             setCurrentUser(prev => ({...prev, ...extraUpdates}));
+          }
+          return;
+      }
 
       const newXP = currentXP + amount;
       
-      // 计算新等级: 简单的线性逻辑，或者根据 10000 封顶计算
-      // 假设 10000 经验是满级 15 级。每级需要 10000 / 14 ≈ 714 经验
+      // 计算新等级
       let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
       if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
 
-      user.set("xp", newXP);
-      user.set("level", newLevel);
-      await user.save();
+      // 2. 设置字段
+      userObj.set("xp", newXP);
+      userObj.set("level", newLevel);
+      
+      // 合并额外更新 (如签到日期)
+      Object.keys(extraUpdates).forEach(key => {
+          userObj.set(key, extraUpdates[key]);
+      });
 
-      // 更新本地状态
-      setCurrentUser({ ...currentUser, xp: newXP, level: newLevel });
+      // 3. 提交保存
+      await userObj.save();
+
+      // 4. 强制更新本地状态，驱动 UI 刷新
+      const updatedUser = { 
+          ...currentUser, 
+          xp: newXP, 
+          level: newLevel,
+          ...extraUpdates
+      };
+      setCurrentUser(updatedUser);
       
       if (newLevel > currentLevel) {
         alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
       }
     } catch (e) {
       console.error("XP update failed", e);
+      // 容错：如果后端没有 xp 列，Bmob 可能会报错。去后台手动建列最稳妥。
     }
+  };
+
+  // --- 签到逻辑 (新) ---
+  const handleCheckIn = async () => {
+    if (!Bmob || !currentUser) return;
+    
+    // 获取今日日期字符串 YYYY-MM-DD 格式，避免时区问题导致重复
+    const today = new Date().toLocaleDateString(); 
+    
+    if (currentUser.lastCheckInDate === today) {
+        alert("今天已经签到过了哦！明天再来吧~");
+        return;
+    }
+
+    // 执行加经验，同时更新最后签到日期
+    // 传递 extraUpdates 参数，确保一次网络请求完成所有更新
+    await handleAddXP(5, { lastCheckInDate: today });
+    
+    alert("签到成功！经验 +5");
   };
 
   if (globalError === "API_SAFE_TOKEN_MISSING") return <ConfigErrorScreen />;
@@ -226,13 +268,21 @@ export default function App() {
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} 
       />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} totalViews={totalViews} />
+        <Sidebar 
+            isOpen={isSidebarOpen} 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            currentUser={currentUser} 
+            totalViews={totalViews}
+            onCheckIn={handleCheckIn} // 传递签到函数
+        />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative">
           <div className="max-w-[1600px] mx-auto">
             {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError}/>}
             {activeTab === 'community' && <CommunityView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} />}
             {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
-            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} onLoginSuccess={()=>handleAddXP(5)} />}
+            {/* 移除了 onLoginSuccess */}
+            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
           </div>
           
           {/* 互动小宠物 */}
@@ -353,7 +403,7 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
   );
 }
 
-function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews }) {
+function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn }) {
   if (!isOpen) return null;
   const MenuItem = ({ id, icon: Icon, label }) => (
     <button onClick={() => setActiveTab(id)} className={`w-full flex items-center gap-5 px-3 py-2.5 rounded-lg mb-1 transition-colors ${activeTab === id ? 'bg-[#f2f2f2] font-medium text-[#0f0f0f]' : 'hover:bg-[#f2f2f2] text-[#0f0f0f]'}`}>
@@ -361,6 +411,9 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews }) {
     </button>
   );
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
+  const today = new Date().toLocaleDateString();
+  const isCheckedIn = currentUser && currentUser.lastCheckInDate === today;
+
   return (
     <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 bg-white h-[calc(100vh-56px)] flex flex-col">
       <div className="border-b border-[#e5e5e5] pb-3 mb-3">
@@ -373,7 +426,26 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews }) {
         <MenuItem id="studio" icon={LayoutDashboard} label={isAdmin ? "管理控制台" : "我的账号"} />
       </div>
       
-      <div className="mt-auto px-3 mb-2">
+      <div className="mt-auto px-3 mb-2 space-y-2">
+        {/* 签到按钮 */}
+        {currentUser && (
+          <button 
+            onClick={onCheckIn}
+            disabled={isCheckedIn}
+            className={`w-full py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-sm ${
+              isCheckedIn 
+              ? 'bg-gray-100 text-gray-400 cursor-default' 
+              : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-300 hover:scale-[1.02]'
+            }`}
+          >
+            {isCheckedIn ? (
+              <><CheckCircle size={16}/> 今日已签到</>
+            ) : (
+              <><CalendarCheck size={16}/> 每日签到 (+5 XP)</>
+            )}
+          </button>
+        )}
+
         <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer group">
            <p className="text-xs font-bold text-gray-400 group-hover:text-blue-500 transition-colors">📢 广告摊位</p>
            <p className="text-[10px] text-gray-300 mt-1 group-hover:text-blue-400 transition-colors">联系博主投放</p>
@@ -667,8 +739,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser, onLoginSuccess }) {
     e.preventDefault(); 
     Bmob.User.login(username, password).then(res => { 
       setCurrentUser(res);
-      // 登录成功加经验
-      if (onLoginSuccess) onLoginSuccess();
+      // 注意：这里移除了自动加经验的逻辑
     }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); 
   };
   const handleRegister = () => { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); };
