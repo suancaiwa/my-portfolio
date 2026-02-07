@@ -13,7 +13,7 @@ const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";
 const BMOB_API_KEY = "0713231xX";
 // 新增：Master Key (用于解决 _User 表无权限修改的问题)
 // 请去 Bmob 后台 -> 设置 -> 应用密钥 -> Master Key 复制填入
-const BMOB_MASTER_KEY = "你的_Master_Key"; 
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; 
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
