@@ -5,13 +5,17 @@ import {
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
-  Eye, CheckCircle
+  Eye, CheckCircle, Cat, Zap, Award
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
 const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
 const BMOB_API_KEY = "0713231xX";
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
+
+// --- 常量定义 ---
+const MAX_LEVEL = 15;
+const MAX_XP = 10000;
 
 // --- 错误处理工具 ---
 const getBmobErrorMsg = (err) => {
@@ -22,60 +26,95 @@ const getBmobErrorMsg = (err) => {
   return err.error || errorStr;
 };
 
-// --- 子组件：项目卡片 (独立出来处理图片错误) ---
+// --- 子组件：互动小宠物 ---
+const InteractivePet = ({ currentUser, xp, level }) => {
+  const [message, setMessage] = useState("");
+  const [isBouncing, setIsBouncing] = useState(false);
+  
+  const quotes = [
+    "今天也要加油写代码哦！",
+    "记得多喝水~",
+    "你的项目真棒！",
+    "快去留言板互动吧！",
+    "冲刺 15 级大神！",
+    "我在看你写 Bug (开玩笑的)",
+    "休息一下眼睛吧"
+  ];
+
+  const handlePetClick = () => {
+    setIsBouncing(true);
+    const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+    setMessage(randomQuote);
+    setTimeout(() => setIsBouncing(false), 500);
+    setTimeout(() => setMessage(""), 3000);
+  };
+
+  // 计算当前等级进度百分比
+  // 简单线性进度： (XP / 10000) * 100
+  const progress = Math.min(100, Math.floor((xp / MAX_XP) * 100));
+
+  return (
+    <div className="fixed bottom-20 right-6 z-50 flex flex-col items-end pointer-events-none">
+      {/* 对话框 */}
+      {message && (
+        <div className="bg-white border border-[#e5e5e5] px-4 py-2 rounded-xl rounded-br-none shadow-lg mb-2 animate-fadeIn max-w-[200px] text-xs text-[#0f0f0f]">
+          {message}
+        </div>
+      )}
+      
+      {/* 宠物本体 */}
+      <div 
+        onClick={handlePetClick}
+        className={`pointer-events-auto cursor-pointer bg-white p-3 rounded-full shadow-xl border-2 border-[#065fd4] hover:bg-blue-50 transition-transform ${isBouncing ? 'animate-bounce' : ''} relative group`}
+      >
+        <Cat size={32} className="text-[#065fd4]" />
+        
+        {/* 等级角标 */}
+        <div className="absolute -top-1 -left-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 rounded-full border border-white shadow-sm">
+          Lv.{level || 1}
+        </div>
+
+        {/* 经验条 Tooltip */}
+        <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+          <div className="mb-1 flex justify-between gap-4">
+            <span>经验值</span>
+            <span>{xp}/{MAX_XP}</span>
+          </div>
+          <div className="w-24 h-1.5 bg-gray-600 rounded-full overflow-hidden">
+            <div className="h-full bg-yellow-400" style={{ width: `${progress}%` }}></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- 子组件：项目卡片 ---
 const ProjectCard = ({ p, isAdmin, handleDelete }) => {
   const [imgError, setImgError] = useState(false);
-  
-  // 判断是否是有效链接 (必须包含 http)
   const isValidUrl = p.image_url && p.image_url.startsWith('http') && !imgError;
 
   return (
     <div className="group cursor-pointer flex flex-col gap-3 relative">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
         {isValidUrl ? (
-          <img 
-            src={p.image_url} 
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" 
-            onError={() => setImgError(true)} // 加载失败时切换状态
-            alt={p.title}
-          />
+          <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={() => setImgError(true)} alt={p.title}/>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100">
-            <Code size={48} />
-          </div>
+          <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><Code size={48} /></div>
         )}
         {isAdmin && (
-          <button 
-            onClick={(e) => handleDelete(e, p.objectId)} 
-            className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10" 
-            title="删除项目"
-          >
-            <Trash2 size={16} />
-          </button>
+          <button onClick={(e) => handleDelete(e, p.objectId)} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10" title="删除项目"><Trash2 size={16} /></button>
         )}
       </div>
-      
       <div className="flex gap-3 pr-4 items-start">
         <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0 shadow-sm"></div>
         <div className="flex flex-col flex-1">
-          <h3 className="text-[#0f0f0f] font-bold text-sm sm:text-base line-clamp-2 leading-tight mb-1 group-hover:text-[#065fd4] transition-colors">
-            {p.title || '无标题'}
-          </h3>
-          <div className="text-[#606060] text-xs sm:text-sm flex flex-col">
-             <span className="hover:text-[#0f0f0f] transition-colors">发布于</span>
-             <span>{p.createdAt ? p.createdAt.split(' ')[0] : '未知日期'}</span>
-          </div>
+          <h3 className="text-[#0f0f0f] font-bold text-sm sm:text-base line-clamp-2 leading-tight mb-1 group-hover:text-[#065fd4] transition-colors">{p.title || '无标题'}</h3>
+          <div className="text-[#606060] text-xs sm:text-sm flex flex-col"><span className="hover:text-[#0f0f0f] transition-colors">发布于</span><span>{p.createdAt ? p.createdAt.split(' ')[0] : '未知日期'}</span></div>
           {p.description && <p className="text-[#606060] text-xs mt-1 line-clamp-2">{p.description}</p>}
-          
           <div className="flex gap-2 mt-2">
-            {p.git_link && (
-              <a href={p.git_link} target="_blank" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}>
-                <Github size={12}/> 源码
-              </a>
-            )}
-            <div className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]">
-               <ExternalLink size={12} /> 详情
-            </div>
+            {p.git_link && <a href={p.git_link} target="_blank" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>}
+            <div className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]"><ExternalLink size={12} /> 详情</div>
           </div>
         </div>
       </div>
@@ -140,21 +179,66 @@ export default function App() {
     } catch (e) { console.log("Stats skipped"); }
   };
 
+  // --- XP 系统核心逻辑 ---
+  const handleAddXP = async (amount = 1) => {
+    if (!Bmob || !currentUser) return;
+    
+    try {
+      const userQuery = Bmob.Query("_User");
+      // 获取最新用户数据
+      const user = await userQuery.get(currentUser.objectId);
+      
+      let currentXP = user.xp || 0;
+      let currentLevel = user.level || 1;
+
+      // 封顶检查
+      if (currentLevel >= MAX_LEVEL) return;
+
+      const newXP = currentXP + amount;
+      
+      // 计算新等级: 简单的线性逻辑，或者根据 10000 封顶计算
+      // 假设 10000 经验是满级 15 级。每级需要 10000 / 14 ≈ 714 经验
+      let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
+      if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
+
+      user.set("xp", newXP);
+      user.set("level", newLevel);
+      await user.save();
+
+      // 更新本地状态
+      setCurrentUser({ ...currentUser, xp: newXP, level: newLevel });
+      
+      if (newLevel > currentLevel) {
+        alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
+      }
+    } catch (e) {
+      console.error("XP update failed", e);
+    }
+  };
+
   if (globalError === "API_SAFE_TOKEN_MISSING") return <ConfigErrorScreen />;
   if (!isLibLoaded) return <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 gap-4"><Loader2 className="w-8 h-8 animate-spin text-red-600" /><p className="text-slate-500 text-sm">正在连接 Bmob 云服务...</p></div>;
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] font-sans flex flex-col overflow-hidden">
-      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} />
+      <Header 
+        isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} 
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} 
+      />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} totalViews={totalViews} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative">
           <div className="max-w-[1600px] mx-auto">
             {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError}/>}
             {activeTab === 'community' && <CommunityView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} />}
-            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} />}
-            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
+            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
+            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} onLoginSuccess={()=>handleAddXP(5)} />}
           </div>
+          
+          {/* 互动小宠物 */}
+          {currentUser && (
+            <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />
+          )}
         </main>
       </div>
     </div>
@@ -252,7 +336,15 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
           )}
         </div>
         {currentUser ? (
-          <button onClick={() => setActiveTab('studio')} className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-sm font-bold select-none cursor-pointer text-white shadow-sm hover:ring-2 hover:ring-purple-200">{currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}</button>
+          <button onClick={() => setActiveTab('studio')} className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-purple-200 bg-purple-50 hover:bg-purple-100 transition-colors">
+            <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">
+              {currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-xs font-bold text-purple-900 leading-none">{currentUser.username}</span>
+              <span className="text-[10px] text-purple-600 leading-none mt-0.5">Lv.{currentUser.level || 1}</span>
+            </div>
+          </button>
         ) : (
           <button onClick={() => setActiveTab('studio')} className="flex items-center gap-2 border border-[#e5e5e5] text-[#065fd4] px-3 py-1.5 rounded-full hover:bg-[#def1ff] text-sm font-medium transition-colors"><User size={20} className="w-5 h-5" /> 登录</button>
         )}
@@ -280,7 +372,15 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews }) {
         <h3 className="px-3 py-2 text-base font-bold text-[#0f0f0f] flex items-center gap-2">{isAdmin ? "管理员后台" : "个人中心"}</h3>
         <MenuItem id="studio" icon={LayoutDashboard} label={isAdmin ? "管理控制台" : "我的账号"} />
       </div>
-      <div className="mt-auto px-3 py-4 text-[12px] text-[#606060] font-medium leading-relaxed">
+      
+      <div className="mt-auto px-3 mb-2">
+        <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-blue-200 hover:bg-blue-50 transition-all cursor-pointer group">
+           <p className="text-xs font-bold text-gray-400 group-hover:text-blue-500 transition-colors">📢 广告摊位</p>
+           <p className="text-[10px] text-gray-300 mt-1 group-hover:text-blue-400 transition-colors">联系博主投放</p>
+        </div>
+      </div>
+
+      <div className="px-3 py-4 text-[12px] text-[#606060] font-medium leading-relaxed">
         <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded border border-gray-100">
           <Eye size={14} /> 
           <span>全站浏览: {totalViews}</span>
@@ -352,7 +452,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
   );
 }
 
-// --- 动态墙 (带搜索过滤) ---
+// --- 动态墙 ---
 function CommunityView({ Bmob, searchQuery, currentUser }) {
   const [blogs, setBlogs] = useState([]);
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
@@ -420,7 +520,7 @@ function CommunityView({ Bmob, searchQuery, currentUser }) {
 }
 
 // --- 留言板 (完善回复功能) ---
-function DiscussionView({ Bmob, currentUser }) {
+function DiscussionView({ Bmob, currentUser, onInteraction }) {
   const [messages, setMessages] = useState([]);
   const [name, setName] = useState('');
   const [msg, setMsg] = useState('');
@@ -482,7 +582,9 @@ function DiscussionView({ Bmob, currentUser }) {
       setReplyTarget(null); 
       setLoading(false); 
       fetchMessages();
-      alert("评论发布成功！");
+      // 增加经验
+      if (onInteraction) onInteraction();
+      alert("评论发布成功！经验+1");
     }).catch(err => { alert("发布失败: " + getBmobErrorMsg(err)); setLoading(false); });
   };
 
@@ -547,7 +649,7 @@ function DiscussionView({ Bmob, currentUser }) {
   );
 }
 
-function StudioView({ Bmob, currentUser, setCurrentUser }) {
+function StudioView({ Bmob, currentUser, setCurrentUser, onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // Inputs
@@ -561,7 +663,14 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleLogin = (e) => { e.preventDefault(); Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); };
+  const handleLogin = (e) => { 
+    e.preventDefault(); 
+    Bmob.User.login(username, password).then(res => { 
+      setCurrentUser(res);
+      // 登录成功加经验
+      if (onLoginSuccess) onLoginSuccess();
+    }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); 
+  };
   const handleRegister = () => { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); };
   const handleLogout = () => { Bmob.User.logout(); setCurrentUser(null); };
 
