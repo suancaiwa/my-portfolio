@@ -11,6 +11,11 @@ import {
 // --- 配置区域 (Bmob) ---
 const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
 const BMOB_API_KEY = "0713231xX";
+// 新增：Master Key (用于解决 _User 表无权限修改的问题)
+// 请去 Bmob 后台 -> 设置 -> 应用密钥 -> Master Key 复制填入
+const BMOB_MASTER_KEY = "你的_Master_Key"; 
+
+// --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
 
 // --- 常量定义 ---
@@ -22,6 +27,9 @@ const getBmobErrorMsg = (err) => {
   const errorStr = JSON.stringify(err);
   if (errorStr.includes("safeToken") || (err.error && err.error.includes("safeToken"))) {
     return "API_SAFE_TOKEN_MISSING";
+  }
+  if (errorStr.includes("MasterKey") || (err.error && err.error.includes("MasterKey"))) {
+    return "MASTER_KEY_MISSING";
   }
   return err.error || errorStr;
 };
@@ -139,13 +147,14 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
-          window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
+          // 初始化： Secret Key, API Key, Master Key (第三个参数)
+          // 只有传入 Master Key 才能在前端修改 _User 表
+          window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY, BMOB_MASTER_KEY.includes("你的") ? "" : BMOB_MASTER_KEY);
           setBmob(window.Bmob);
           const current = window.Bmob.User.current();
-          // 如果有缓存用户，尝试同步最新数据
           if (current) {
              setCurrentUser(current);
-             // 默默拉取一次最新数据以防本地过时
+             // 同步最新数据
              const query = window.Bmob.Query("_User");
              query.get(current.objectId).then(userObj => {
                 setCurrentUser(prev => ({...prev, xp: userObj.xp || 0, level: userObj.level || 1, lastCheckInDate: userObj.lastCheckInDate}));
@@ -181,12 +190,17 @@ export default function App() {
     } catch (e) { console.log("Stats skipped"); }
   };
 
-  // --- 核心修复：更稳健的经验更新逻辑 ---
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
     if (!Bmob || !currentUser) return;
     
+    // 如果 Master Key 没填，提前拦截提示
+    if (!BMOB_MASTER_KEY || BMOB_MASTER_KEY.includes("你的")) {
+        setGlobalError("MASTER_KEY_MISSING");
+        return;
+    }
+    
     try {
-      // 1. 获取最新用户数据 (只读取)
+      // 1. 获取最新用户数据
       const userQuery = Bmob.Query("_User");
       const userObj = await userQuery.get(currentUser.objectId);
       
@@ -194,7 +208,6 @@ export default function App() {
       let currentLevel = userObj.level || 1;
 
       if (currentLevel >= MAX_LEVEL) {
-          // 即使满级，如果有 extraUpdates (如签到日期) 也要执行保存
           if (Object.keys(extraUpdates).length > 0) {
              const updateQ = Bmob.Query("_User");
              updateQ.set('id', currentUser.objectId);
@@ -206,26 +219,22 @@ export default function App() {
       }
 
       const newXP = currentXP + amount;
-      
-      // 计算新等级
       let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
       if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
 
-      // 2. 使用新的 Query 对象进行更新 (避免发送只读字段导致 400 错误)
+      // 2. 更新
       const updateQuery = Bmob.Query("_User");
-      updateQuery.set('id', currentUser.objectId); // 锁定要更新的 ID
+      updateQuery.set('id', currentUser.objectId);
       updateQuery.set("xp", newXP);
       updateQuery.set("level", newLevel);
       
-      // 合并额外更新 (如签到日期)
       Object.keys(extraUpdates).forEach(key => {
           updateQuery.set(key, extraUpdates[key]);
       });
 
-      // 3. 提交保存
       await updateQuery.save();
 
-      // 4. 强制更新本地状态
+      // 3. 更新本地状态
       const updatedUser = { 
           ...currentUser, 
           xp: newXP, 
@@ -239,65 +248,41 @@ export default function App() {
       }
     } catch (e) {
       console.error("XP update failed", e);
-      // 提示用户可能的原因
-      if (e.code === 400) {
-          alert("经验值更新失败(400)。请检查 Bmob 后台 _User 表是否已创建 'xp'(Number), 'level'(Number), 'lastCheckInDate'(String) 列。");
+      if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") {
+          setGlobalError("MASTER_KEY_MISSING");
       } else {
           alert("经验值更新失败: " + (e.error || JSON.stringify(e)));
       }
     }
   };
 
-  // --- 签到逻辑 (新) ---
   const handleCheckIn = async () => {
     if (!Bmob || !currentUser) return;
-    
-    // 获取今日日期字符串 YYYY-MM-DD 格式，避免时区问题导致重复
     const today = new Date().toLocaleDateString(); 
-    
     if (currentUser.lastCheckInDate === today) {
         alert("今天已经签到过了哦！明天再来吧~");
         return;
     }
-
-    // 执行加经验，同时更新最后签到日期
-    // 传递 extraUpdates 参数，确保一次网络请求完成所有更新
     await handleAddXP(5, { lastCheckInDate: today });
-    
     alert("签到成功！经验 +5");
   };
 
-  if (globalError === "API_SAFE_TOKEN_MISSING") return <ConfigErrorScreen />;
+  if (globalError === "API_SAFE_TOKEN_MISSING" || globalError === "MASTER_KEY_MISSING") return <ConfigErrorScreen type={globalError} />;
   if (!isLibLoaded) return <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 gap-4"><Loader2 className="w-8 h-8 animate-spin text-red-600" /><p className="text-slate-500 text-sm">正在连接 Bmob 云服务...</p></div>;
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] font-sans flex flex-col overflow-hidden">
-      <Header 
-        isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} 
-        searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} 
-      />
+      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar 
-            isOpen={isSidebarOpen} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            currentUser={currentUser} 
-            totalViews={totalViews}
-            onCheckIn={handleCheckIn} // 传递签到函数
-        />
+        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative">
           <div className="max-w-[1600px] mx-auto">
             {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError}/>}
             {activeTab === 'community' && <CommunityView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} />}
             {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
-            {/* 移除了 onLoginSuccess */}
             {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
           </div>
-          
-          {/* 互动小宠物 */}
-          {currentUser && (
-            <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />
-          )}
+          {currentUser && <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />}
         </main>
       </div>
     </div>
@@ -436,7 +421,6 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
       </div>
       
       <div className="mt-auto px-3 mb-2 space-y-2">
-        {/* 签到按钮 */}
         {currentUser && (
           <button 
             onClick={onCheckIn}
@@ -730,7 +714,7 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
   );
 }
 
-function StudioView({ Bmob, currentUser, setCurrentUser, onLoginSuccess }) {
+function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // Inputs
@@ -748,7 +732,6 @@ function StudioView({ Bmob, currentUser, setCurrentUser, onLoginSuccess }) {
     e.preventDefault(); 
     Bmob.User.login(username, password).then(res => { 
       setCurrentUser(res);
-      // 注意：这里移除了自动加经验的逻辑
     }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); 
   };
   const handleRegister = () => { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); };
@@ -934,14 +917,34 @@ function StudioView({ Bmob, currentUser, setCurrentUser, onLoginSuccess }) {
   );
 }
 
-function ConfigErrorScreen() {
+function ConfigErrorScreen({ type }) {
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] flex items-center justify-center p-4">
       <div className="max-w-md text-center bg-white p-8 rounded-xl border border-[#e5e5e5] shadow-lg">
-        <AlertTriangle size={64} className="mx-auto text-red-600 mb-4" /><h1 className="text-2xl font-bold mb-2">配置错误：API 安全码</h1>
-        <p className="text-[#606060] mb-6">你的代码填入了 API 安全码，但 Bmob 后台似乎还没有启用它，或者不一致。<br/><br/><strong>请执行以下修复步骤：</strong></p>
-        <ol className="text-left text-sm text-[#0f0f0f] bg-[#f2f2f2] p-4 rounded mb-6 list-decimal list-inside space-y-2"><li>登录 <a href="https://www.bmob.cn/console" target="_blank" className="text-blue-600 underline">Bmob 后台</a></li><li>点击左侧 <strong>设置</strong> -&gt; <strong>应用配置</strong></li><li>找到 <strong>API 安全码</strong> 一栏</li><li>输入 <code>0713231xX</code> 并点击 <strong>保存</strong> (页面底部)</li></ol>
-        <button onClick={()=>window.location.reload()} className="bg-[#065fd4] text-white px-6 py-2 rounded-full hover:bg-[#0056bf]">设置好了，刷新页面</button>
+        <AlertTriangle size={64} className="mx-auto text-red-600 mb-4" />
+        
+        {type === "MASTER_KEY_MISSING" ? (
+          <>
+            <h1 className="text-2xl font-bold mb-2">缺少 Master Key</h1>
+            <p className="text-[#606060] mb-6">
+              为了实现用户经验值的更新功能，需要在初始化时传入 Master Key。<br/>
+              请在代码中填写 <code>BMOB_MASTER_KEY</code>。
+            </p>
+            <div className="bg-gray-100 p-4 rounded text-left text-xs text-[#606060]">
+              <p>1. 去 Bmob 后台 -&gt; 设置 -&gt; 应用密钥</p>
+              <p>2. 复制 <strong>Master Key</strong></p>
+              <p>3. 填入 App.jsx 顶部的配置区域</p>
+            </div>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold mb-2">配置错误：API 安全码</h1>
+            <p className="text-[#606060] mb-6">你的代码填入了 API 安全码，但 Bmob 后台似乎还没有启用它，或者不一致。</p>
+            <ol className="text-left text-sm text-[#0f0f0f] bg-[#f2f2f2] p-4 rounded mb-6 list-decimal list-inside space-y-2"><li>登录 Bmob 后台</li><li>点击左侧 <strong>设置</strong> -&gt; <strong>应用配置</strong></li><li>找到 <strong>API 安全码</strong> 一栏</li><li>输入 <code>0713231xX</code> 并点击 <strong>保存</strong></li></ol>
+          </>
+        )}
+        
+        <button onClick={()=>window.location.reload()} className="bg-[#065fd4] text-white px-6 py-2 rounded-full hover:bg-[#0056bf] mt-6">设置好了，刷新页面</button>
       </div>
     </div>
   );
