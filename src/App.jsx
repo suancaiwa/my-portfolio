@@ -186,8 +186,8 @@ export default function App() {
     if (!Bmob || !currentUser) return;
     
     try {
+      // 1. 获取最新用户数据 (只读取)
       const userQuery = Bmob.Query("_User");
-      // 1. 务必先重新获取最新的 User 对象，确保基于后端真实数据计算
       const userObj = await userQuery.get(currentUser.objectId);
       
       let currentXP = userObj.xp || 0;
@@ -196,8 +196,10 @@ export default function App() {
       if (currentLevel >= MAX_LEVEL) {
           // 即使满级，如果有 extraUpdates (如签到日期) 也要执行保存
           if (Object.keys(extraUpdates).length > 0) {
-             Object.keys(extraUpdates).forEach(key => userObj.set(key, extraUpdates[key]));
-             await userObj.save();
+             const updateQ = Bmob.Query("_User");
+             updateQ.set('id', currentUser.objectId);
+             Object.keys(extraUpdates).forEach(key => updateQ.set(key, extraUpdates[key]));
+             await updateQ.save();
              setCurrentUser(prev => ({...prev, ...extraUpdates}));
           }
           return;
@@ -209,19 +211,21 @@ export default function App() {
       let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
       if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
 
-      // 2. 设置字段
-      userObj.set("xp", newXP);
-      userObj.set("level", newLevel);
+      // 2. 使用新的 Query 对象进行更新 (避免发送只读字段导致 400 错误)
+      const updateQuery = Bmob.Query("_User");
+      updateQuery.set('id', currentUser.objectId); // 锁定要更新的 ID
+      updateQuery.set("xp", newXP);
+      updateQuery.set("level", newLevel);
       
       // 合并额外更新 (如签到日期)
       Object.keys(extraUpdates).forEach(key => {
-          userObj.set(key, extraUpdates[key]);
+          updateQuery.set(key, extraUpdates[key]);
       });
 
       // 3. 提交保存
-      await userObj.save();
+      await updateQuery.save();
 
-      // 4. 强制更新本地状态，驱动 UI 刷新
+      // 4. 强制更新本地状态
       const updatedUser = { 
           ...currentUser, 
           xp: newXP, 
@@ -235,7 +239,12 @@ export default function App() {
       }
     } catch (e) {
       console.error("XP update failed", e);
-      // 容错：如果后端没有 xp 列，Bmob 可能会报错。去后台手动建列最稳妥。
+      // 提示用户可能的原因
+      if (e.code === 400) {
+          alert("经验值更新失败(400)。请检查 Bmob 后台 _User 表是否已创建 'xp'(Number), 'level'(Number), 'lastCheckInDate'(String) 列。");
+      } else {
+          alert("经验值更新失败: " + (e.error || JSON.stringify(e)));
+      }
     }
   };
 
@@ -524,7 +533,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
   );
 }
 
-// --- 动态墙 ---
+// --- 动态墙 (带搜索过滤) ---
 function CommunityView({ Bmob, searchQuery, currentUser }) {
   const [blogs, setBlogs] = useState([]);
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
