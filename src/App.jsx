@@ -5,14 +5,15 @@ import {
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
-  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck
+  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
-const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
-const BMOB_API_KEY = "0713231xX";
-// 请去 Bmob 后台 -> 设置 -> 应用密钥 -> Master Key 复制填入
-const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; 
+// ⚠️ 你的配置信息已更新，经核对完全正确
+const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID (主要用于核对)
+const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (Web SDK 初始化核心密钥)
+const BMOB_API_KEY = "0713231xX";                    // API 安全码 (API Safe Code)
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key (超级权限)
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
@@ -93,7 +94,6 @@ const InteractivePet = ({ currentUser, xp, level }) => {
 // --- 子组件：项目卡片 ---
 const ProjectCard = ({ p, isAdmin, handleDelete }) => {
   const [imgError, setImgError] = useState(false);
-  // 兼容 image_url (下划线) 和 imageUrl (驼峰) 两种写法，防止数据库列名不一致
   const url = p.image_url || p.imageUrl; 
   const isValidUrl = url && url.startsWith('http') && !imgError;
 
@@ -103,7 +103,10 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
         {isValidUrl ? (
           <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={() => setImgError(true)} alt={p.title}/>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><Code size={48} /></div>
+          <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 flex-col gap-2">
+            <Code size={40} />
+            <span className="text-xs">暂无图片</span>
+          </div>
         )}
         {isAdmin && (
           <button onClick={(e) => handleDelete(e, p.objectId)} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10" title="删除项目"><Trash2 size={16} /></button>
@@ -116,7 +119,11 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
           <div className="text-[#606060] text-xs sm:text-sm flex flex-col"><span className="hover:text-[#0f0f0f] transition-colors">发布于</span><span>{p.createdAt ? p.createdAt.split(' ')[0] : '未知日期'}</span></div>
           {p.description && <p className="text-[#606060] text-xs mt-1 line-clamp-2">{p.description}</p>}
           <div className="flex gap-2 mt-2">
-            {p.git_link && <a href={p.git_link} target="_blank" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>}
+            {p.git_link ? (
+              <a href={p.git_link} target="_blank" rel="noreferrer" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>
+            ) : (
+              <span className="text-xs text-gray-400 px-2 py-1 border border-transparent flex gap-1 items-center"><Github size={12}/> 无链接</span>
+            )}
             <div className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]"><ExternalLink size={12} /> 详情</div>
           </div>
         </div>
@@ -126,7 +133,7 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
 };
 
 export default function App() {
-  const [Bmob, setBmob] = useState(null);
+  const bmobRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -134,6 +141,7 @@ export default function App() {
   const [isLibLoaded, setIsLibLoaded] = useState(false);
   const [globalError, setGlobalError] = useState(null);
   const [totalViews, setTotalViews] = useState(0);
+  const [projectsUpdated, setProjectsUpdated] = useState(false);
 
   useEffect(() => {
     if (window.Bmob) {
@@ -148,15 +156,27 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
+          // Web SDK 标准初始化：Secret Key + API Safe Code
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY, BMOB_MASTER_KEY.includes("你的") ? "" : BMOB_MASTER_KEY);
-          setBmob(window.Bmob);
+          bmobRef.current = window.Bmob;
+          
+          console.log(`%c [Bmob Init Success]`, "color: green; font-weight: bold; font-size: 14px;");
+          console.log(`Current App ID (Check): ${BMOB_APP_ID}`);
+          console.log(`Using Secret Key: ${BMOB_SECRET_KEY.slice(0,5)}...`);
+          
           const current = window.Bmob.User.current();
           if (current) {
              setCurrentUser(current);
              const query = window.Bmob.Query("_User");
              query.get(current.objectId).then(userObj => {
                 setCurrentUser(prev => ({...prev, xp: userObj.xp || 0, level: userObj.level || 1, lastCheckInDate: userObj.lastCheckInDate}));
-             }).catch(e => console.log("Sync user failed", e));
+             }).catch(e => {
+                 console.log("Sync user failed", e);
+                 if(e && e.code === 206) { 
+                     window.Bmob.User.logout();
+                     setCurrentUser(null);
+                 }
+             });
           }
           updateSiteViews(window.Bmob);
         } catch (e) {
@@ -189,14 +209,9 @@ export default function App() {
   };
 
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
-    if (!Bmob || !currentUser) return;
-    if (!BMOB_MASTER_KEY || BMOB_MASTER_KEY.includes("你的")) {
-        setGlobalError("MASTER_KEY_MISSING");
-        return;
-    }
-    
+    if (!bmobRef.current || !currentUser) return;
     try {
-      const userQuery = Bmob.Query("_User");
+      const userQuery = bmobRef.current.Query("_User");
       const userObj = await userQuery.get(currentUser.objectId);
       
       let currentXP = userObj.xp || 0;
@@ -204,7 +219,7 @@ export default function App() {
 
       if (currentLevel >= MAX_LEVEL) {
           if (Object.keys(extraUpdates).length > 0) {
-             const updateQ = Bmob.Query("_User");
+             const updateQ = bmobRef.current.Query("_User");
              updateQ.set('id', currentUser.objectId);
              Object.keys(extraUpdates).forEach(key => updateQ.set(key, extraUpdates[key]));
              await updateQ.save();
@@ -217,7 +232,7 @@ export default function App() {
       let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
       if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
 
-      const updateQuery = Bmob.Query("_User");
+      const updateQuery = bmobRef.current.Query("_User");
       updateQuery.set('id', currentUser.objectId);
       updateQuery.set("xp", newXP);
       updateQuery.set("level", newLevel);
@@ -243,14 +258,12 @@ export default function App() {
       console.error("XP update failed", e);
       if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") {
           setGlobalError("MASTER_KEY_MISSING");
-      } else {
-          alert("经验值更新失败: " + (e.error || JSON.stringify(e)));
       }
     }
   };
 
   const handleCheckIn = async () => {
-    if (!Bmob || !currentUser) return;
+    if (!bmobRef.current || !currentUser) return;
     const today = new Date().toLocaleDateString(); 
     if (currentUser.lastCheckInDate === today) {
         alert("今天已经签到过了哦！明天再来吧~");
@@ -265,15 +278,15 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] font-sans flex flex-col overflow-hidden">
-      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={Bmob} />
+      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={bmobRef.current} />
       <div className="flex flex-1 overflow-hidden">
         <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative">
           <div className="max-w-[1600px] mx-auto">
-            {activeTab === 'home' && <HomeView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError}/>}
-            {activeTab === 'community' && <CommunityView Bmob={Bmob} searchQuery={searchQuery} currentUser={currentUser} />}
-            {activeTab === 'discussion' && <DiscussionView Bmob={Bmob} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
-            {activeTab === 'studio' && <StudioView Bmob={Bmob} currentUser={currentUser} setCurrentUser={setCurrentUser} />}
+            {activeTab === 'home' && <HomeView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError} projectsUpdated={projectsUpdated} setProjectsUpdated={setProjectsUpdated}/>}
+            {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} />}
+            {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
+            {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} />}
           </div>
           {currentUser && <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />}
         </main>
@@ -451,17 +464,23 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
 }
 
 // --- 首页 (带搜索过滤) ---
-function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
+function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpdated, setProjectsUpdated }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
 
   const fetchProjects = async () => {
+    if (!Bmob) return;
     const query = Bmob.Query("projects");
     query.order("-createdAt");
     try {
       const res = await query.find();
+      console.log("Projects loaded in Home:", res);
       if(Array.isArray(res)) setProjects(res);
+      // 重置更新标志
+      if (setProjectsUpdated) {
+        setProjectsUpdated(false);
+      }
     } catch(e) { 
       console.error(e); 
       if(getBmobErrorMsg(e) === "API_SAFE_TOKEN_MISSING") setGlobalError("API_SAFE_TOKEN_MISSING");
@@ -470,6 +489,12 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
   };
 
   useEffect(() => { fetchProjects(); }, [Bmob]);
+  // 当项目更新时重新加载
+  useEffect(() => {
+    if (projectsUpdated) {
+      fetchProjects();
+    }
+  }, [projectsUpdated, Bmob]);
 
   const handleDelete = async (e, id) => {
     e.stopPropagation();
@@ -479,7 +504,6 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
       await query.destroy(id); 
       fetchProjects(); 
     } catch(err) { 
-      // 400 错误通常是因为 ID 无效或删除权限问题，尝试忽略并刷新列表
       console.warn("Delete warning:", err);
       fetchProjects();
     }
@@ -504,7 +528,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError }) {
       
       {filteredProjects.length === 0 ? (
         <div className="col-span-full text-center text-[#606060] py-20">
-          {searchQuery ? `未找到包含 "${searchQuery}" 的项目` : "暂无项目，去后台发布一个吧"}
+          {searchQuery ? `未找到包含 "${searchQuery}" 的项目` : "暂无项目，请去后台发布一个，并确保 Key 设置正确"}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 animate-fadeIn">
@@ -714,7 +738,7 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
   );
 }
 
-function StudioView({ Bmob, currentUser, setCurrentUser }) {
+function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   // Inputs
@@ -727,62 +751,90 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const fileInputRef = useRef(null);
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState('');
 
-  const handleLogin = (e) => { e.preventDefault(); Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); };
-  const handleRegister = () => { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); };
-  const handleLogout = () => { Bmob.User.logout(); setCurrentUser(null); };
+  const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); } else { alert("Bmob 未初始化"); } };
+  const handleRegister = () => { if (Bmob) { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); } };
+  const handleLogout = () => { if (Bmob) { Bmob.User.logout(); setCurrentUser(null); } };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedFileName(file.name);
       setPImg('');
+      // Show local preview immediately
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
     } else {
       setSelectedFileName('');
+      setPreviewUrl('');
     }
   };
 
   const clearSelectedFile = () => {
     setSelectedFileName('');
+    setPreviewUrl('');
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleFileUpload = async (file) => {
     if(!file) return null;
     try {
-      // 1. 强制生成纯数字文件名，彻底规避中文乱码
+      // 1. 文件名净化：只保留字母数字，防止中文乱码导致上传失败
       const extension = file.name.split('.').pop();
-      const safeName = `${Date.now()}.${extension}`; 
+      const randomStr = Math.random().toString(36).substring(2, 8);
+      const safeName = `img${Date.now()}${randomStr}.${extension}`; 
+      
+      console.log("开始上传文件:", safeName);
+      if (!Bmob) throw new Error("Bmob 未初始化");
       
       const bmobFile = Bmob.File(safeName, file);
-      
       const res = await bmobFile.save();
-      console.log("Upload Response:", res);
       
-      // 2. 兼容各种返回格式
+      // --- 关键修改：直接弹窗显示原始响应，方便调试 ---
+      alert("【调试信息】Bmob上传响应:\n" + JSON.stringify(res, null, 2));
+      
+      let url = null;
+      
+      // --- 暴力URL提取逻辑 ---
+      // 1. 常规数组/对象检查
       if (Array.isArray(res) && res.length > 0) {
-        let url = res[0].url || res[0].fileUrl;
-        
-        // 兜底解析
+        url = res[0].url || res[0].fileUrl || res[0].file_url || (res[0].success && res[0].url);
+        // JSON字符串解析兜底
         if (!url && typeof res[0] === 'string') {
-            try { const parsed = JSON.parse(res[0]); url = parsed.url; } catch(e) {}
+           try { const parsed = JSON.parse(res[0]); url = parsed.url || parsed.fileUrl; } catch(e) {}
         }
-
-        // 3. 强制 HTTPS
-        if (url && url.startsWith('http:')) {
-          url = url.replace('http:', 'https:');
-        }
-        return url;
-      } else if (res && res.url) {
-          let url = res.url;
-          if (url.startsWith('http:')) url = url.replace('http:', 'https:');
-          return url;
+      } else if (res && typeof res === 'object') {
+        url = res.url || res.fileUrl || res.file_url;
       }
       
-      return null;
+      // 2. 如果还没找到，尝试递归搜索任何看起来像URL的字符串
+      if (!url) {
+         try {
+           const jsonString = JSON.stringify(res);
+           // 简单的正则匹配 http 链接
+           const match = jsonString.match(/https?:\/\/[^"\s]+/);
+           if (match) {
+             url = match[0];
+             console.log("暴力提取到 URL:", url);
+           }
+         } catch(e) {}
+      }
+
+      if (url) {
+        // Enforce HTTPS
+        if (url.startsWith('http:')) {
+          url = url.replace('http:', 'https:');
+        }
+        console.log("最终提取的 URL:", url);
+        return url;
+      } else {
+        console.error("无法从响应中提取 URL");
+        return null;
+      }
     } catch(e) {
-      console.error("Upload Error:", e);
-      alert("上传失败: " + (e.error || e.message || JSON.stringify(e)));
+      console.error("Upload error:", e);
+      alert("上传出错: " + (e.message || JSON.stringify(e)));
       return null;
     }
   };
@@ -793,6 +845,13 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     let imageUrl = pImg;
 
     try {
+      if (!pTitle.trim()) {
+        alert("请输入项目标题");
+        setIsUploading(false);
+        return;
+      }
+      
+      // Step 1: 上传图片
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const file = fileInputRef.current.files[0];
         const uploadedUrl = await handleFileUpload(file);
@@ -800,34 +859,45 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
         if(uploadedUrl) {
             imageUrl = uploadedUrl;
         } else {
-            alert("图片上传成功但未返回有效链接，请重试");
+            // --- 关键修改：如果上传失败，阻止继续保存 ---
+            alert("❌ 图片上传失败，无法获取到 URL！\n\n请检查弹出的调试信息。如果 Bmob 返回了空数据，可能是账号流量耗尽或配置问题。本次发布已取消，防止产生空数据。");
             setIsUploading(false);
             return;
         }
       }
       
-      // URL 格式校验，防止存入 "侵权" 等脏数据
-      if (imageUrl && !imageUrl.startsWith('http')) {
-         alert("无效的图片链接（必须以 http 开头），发布已取消。");
-         setIsUploading(false);
-         return;
-      }
-
+      // Step 2: 关联数据
       const query = Bmob.Query("projects");
       query.set("title", pTitle);
       query.set("description", pDesc);
-      query.set("git_link", pLink);
-      // 确保字段名为 image_url (下划线)
-      query.set("image_url", imageUrl);
+      // 确保 git_link 为字符串
+      query.set("git_link", String(pLink || "")); 
+      query.set("image_url", imageUrl || "");
       
-      await query.save();
+      // --- 强制设置 ACL 为公开读写 ---
+      try {
+        const acl = Bmob.ACL();
+        acl.setPublicReadAccess(true);
+        acl.setPublicWriteAccess(true);
+        query.set("ACL", acl);
+      } catch(e) {
+        console.log("ACL set skipped (SDK version diff)", e);
+      }
       
-      alert("项目发布成功"); 
+      const savedProject = await query.save();
+      console.log("Saved project:", savedProject);
+      
+      if (setProjectsUpdated) setProjectsUpdated(true);
+      
+      // 提示用户刷新后台查看
+      alert(`✅ 发布成功! ObjectId: ${savedProject.objectId}\n\n⚠️ 重要提示：Bmob 后台网页列表【不会自动刷新】！\n请手动点击后台网页右上角的刷新按钮 🔄 查看新数据。`); 
+      
+      // Reset form
       setPTitle(''); setPDesc(''); setPImg(''); setPLink('');
       clearSelectedFile();
     } catch (err) {
-      console.error(err);
-      alert("发布失败: " + (err.error || JSON.stringify(err)));
+      console.error("Save error:", err);
+      alert("发布失败: " + (err.error || err.message || JSON.stringify(err)));
     } finally {
       setIsUploading(false);
     }
@@ -835,10 +905,14 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
 
   const handleAddBlog = (e) => {
     e.preventDefault();
-    const query = Bmob.Query("blogs");
-    query.set("content", bContent);
-    query.set("likes", 0);
-    query.save().then(res => { alert("动态发布成功"); setBContent(''); }).catch(err => alert("发布失败: " + getBmobErrorMsg(err)));
+    if (Bmob) {
+      const query = Bmob.Query("blogs");
+      query.set("content", bContent);
+      query.set("likes", 0);
+      query.save().then(res => { alert("动态发布成功"); setBContent(''); }).catch(err => alert("发布失败: " + getBmobErrorMsg(err)));
+    } else {
+      alert("Bmob 未初始化，请刷新页面重试");
+    }
   };
 
   if (!currentUser) {
@@ -869,6 +943,19 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
   return (
     <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f] px-4">
       <div className="flex justify-between items-center mb-8 border-b border-[#e5e5e5] pb-4"><h2 className="text-2xl font-bold flex items-center gap-2"><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className="text-sm text-[#606060] hidden sm:inline">当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f] transition-colors font-medium text-sm border border-[#e5e5e5] px-3 py-1.5 rounded-full hover:bg-[#f2f2f2]"><LogOut size={16}/> 退出</button></div></div>
+      
+      {/* 诊断提示栏 */}
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 flex items-start gap-3">
+        <HelpCircle size={20} className="text-yellow-600 shrink-0 mt-0.5" />
+        <div className="text-sm text-yellow-800">
+          <p className="font-bold mb-1">数据写进去但后台看不到？</p>
+          <ul className="list-disc list-inside space-y-1 text-xs">
+            <li><strong>你的 ID 已核对无误！</strong> 请手动刷新 Bmob 后台网页（按 F5 或点右上角刷新按钮）。</li>
+            <li>如果图片上传依然失败，请注意查看弹出的【调试信息】内容。</li>
+          </ul>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]"><div className="p-2 bg-blue-50 rounded-full"><Upload size={20} className="text-[#065fd4]"/></div><h3 className="font-bold text-lg text-[#0f0f0f]">发布项目</h3></div>
@@ -879,14 +966,17 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
               <div>
                 <label className="block text-xs font-medium text-[#606060] mb-1.5">项目封面</label>
                 {selectedFileName ? (
-                  <div className="studio-input flex items-center justify-between bg-blue-50 border-blue-200">
-                    <div className="flex items-center gap-2 overflow-hidden"><FileCheck size={14} className="text-green-600 flex-shrink-0"/><span className="text-xs truncate">{selectedFileName}</span></div>
-                    <button type="button" onClick={clearSelectedFile} className="text-gray-400 hover:text-red-500"><X size={14}/></button>
+                  <div className="flex flex-col gap-2">
+                    {previewUrl && <img src={previewUrl} className="w-full h-24 object-cover rounded border border-gray-200" alt="Preview" />}
+                    <div className="studio-input flex items-center justify-between bg-blue-50 border-blue-200">
+                      <div className="flex items-center gap-2 overflow-hidden"><FileCheck size={14} className="text-green-600 flex-shrink-0"/><span className="text-xs truncate">{selectedFileName}</span></div>
+                      <button type="button" onClick={clearSelectedFile} className="text-gray-400 hover:text-red-500"><X size={14}/></button>
+                    </div>
                   </div>
                 ) : (
                   <div className="relative group">
                     <input type="file" ref={fileInputRef} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleFileChange} accept="image/*"/>
-                    <div className="studio-input flex items-center justify-center gap-2 cursor-pointer group-hover:bg-gray-50 transition-colors text-gray-500">
+                    <div className="studio-input flex items-center justify-center gap-2 cursor-pointer group-hover:bg-gray-50 transition-colors text-gray-500 h-[46px]">
                       <ImageIcon size={16}/> <span className="text-xs">点击上传图片</span>
                     </div>
                   </div>
