@@ -11,7 +11,6 @@ import {
 // --- 配置区域 (Bmob) ---
 const BMOB_SECRET_KEY = "9fa1ba7ef19ef189"; 
 const BMOB_API_KEY = "0713231xX";
-// 新增：Master Key (用于解决 _User 表无权限修改的问题)
 // 请去 Bmob 后台 -> 设置 -> 应用密钥 -> Master Key 复制填入
 const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; 
 
@@ -94,13 +93,15 @@ const InteractivePet = ({ currentUser, xp, level }) => {
 // --- 子组件：项目卡片 ---
 const ProjectCard = ({ p, isAdmin, handleDelete }) => {
   const [imgError, setImgError] = useState(false);
-  const isValidUrl = p.image_url && p.image_url.startsWith('http') && !imgError;
+  // 兼容 image_url (下划线) 和 imageUrl (驼峰) 两种写法，防止数据库列名不一致
+  const url = p.image_url || p.imageUrl; 
+  const isValidUrl = url && url.startsWith('http') && !imgError;
 
   return (
     <div className="group cursor-pointer flex flex-col gap-3 relative">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
         {isValidUrl ? (
-          <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={() => setImgError(true)} alt={p.title}/>
+          <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={() => setImgError(true)} alt={p.title}/>
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100"><Code size={48} /></div>
         )}
@@ -147,14 +148,11 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
-          // 初始化： Secret Key, API Key, Master Key (第三个参数)
-          // 只有传入 Master Key 才能在前端修改 _User 表
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY, BMOB_MASTER_KEY.includes("你的") ? "" : BMOB_MASTER_KEY);
           setBmob(window.Bmob);
           const current = window.Bmob.User.current();
           if (current) {
              setCurrentUser(current);
-             // 同步最新数据
              const query = window.Bmob.Query("_User");
              query.get(current.objectId).then(userObj => {
                 setCurrentUser(prev => ({...prev, xp: userObj.xp || 0, level: userObj.level || 1, lastCheckInDate: userObj.lastCheckInDate}));
@@ -192,15 +190,12 @@ export default function App() {
 
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
     if (!Bmob || !currentUser) return;
-    
-    // 如果 Master Key 没填，提前拦截提示
     if (!BMOB_MASTER_KEY || BMOB_MASTER_KEY.includes("你的")) {
         setGlobalError("MASTER_KEY_MISSING");
         return;
     }
     
     try {
-      // 1. 获取最新用户数据
       const userQuery = Bmob.Query("_User");
       const userObj = await userQuery.get(currentUser.objectId);
       
@@ -222,7 +217,6 @@ export default function App() {
       let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
       if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
 
-      // 2. 更新
       const updateQuery = Bmob.Query("_User");
       updateQuery.set('id', currentUser.objectId);
       updateQuery.set("xp", newXP);
@@ -234,7 +228,6 @@ export default function App() {
 
       await updateQuery.save();
 
-      // 3. 更新本地状态
       const updatedUser = { 
           ...currentUser, 
           xp: newXP, 
@@ -336,7 +329,7 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f]"><Menu size={24} /></button>
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveTab('home')}>
           <div className="bg-red-600 rounded-lg p-1 flex items-center justify-center"><Laptop size={16} className="text-white" /></div>
-          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">Nine Ice</span>
+          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">DevSpace</span>
         </div>
       </div>
       <div className="hidden md:flex flex-1 max-w-[600px] mx-4">
@@ -450,8 +443,8 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
           <Eye size={14} /> 
           <span>全站浏览: {totalViews}</span>
         </div>
-        <p className="mb-1">关于 • 开发者 • cailixian2@gmail.com</p>
-        <p>© 2026 Nine Ice</p>
+        <p className="mb-1">关于 • 开发者 • 联系方式</p>
+        <p>© 2026 DevSpace</p>
       </div>
     </aside>
   );
@@ -728,12 +721,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
 
-  const handleLogin = (e) => { 
-    e.preventDefault(); 
-    Bmob.User.login(username, password).then(res => { 
-      setCurrentUser(res);
-    }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); 
-  };
+  const handleLogin = (e) => { e.preventDefault(); Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); };
   const handleRegister = () => { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); };
   const handleLogout = () => { Bmob.User.logout(); setCurrentUser(null); };
 
@@ -752,11 +740,12 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  // --- 修复版文件上传 ---
   const handleFileUpload = async (file) => {
     if(!file) return null;
     try {
+      // 1. 强制生成纯数字文件名，避免中文乱码
       const extension = file.name.split('.').pop();
-      // 强制生成纯数字文件名，避免中文乱码
       const safeName = `${Date.now()}.${extension}`; 
       
       const bmobFile = Bmob.File(safeName, file);
@@ -764,16 +753,16 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
       const res = await bmobFile.save();
       console.log("Upload Response:", res);
       
+      // 2. 兼容各种返回格式
       if (Array.isArray(res) && res.length > 0) {
         let url = res[0].url || res[0].fileUrl;
         
+        // 兜底解析
         if (!url && typeof res[0] === 'string') {
-            try {
-                const parsed = JSON.parse(res[0]);
-                url = parsed.url;
-            } catch(e) {}
+            try { const parsed = JSON.parse(res[0]); url = parsed.url; } catch(e) {}
         }
 
+        // 3. 强制 HTTPS
         if (url && url.startsWith('http:')) {
           url = url.replace('http:', 'https:');
         }
@@ -798,6 +787,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
     let imageUrl = pImg;
 
     try {
+      // 优先处理文件上传
       if (fileInputRef.current && fileInputRef.current.files[0]) {
         const file = fileInputRef.current.files[0];
         const uploadedUrl = await handleFileUpload(file);
@@ -805,20 +795,15 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
         if(uploadedUrl) {
             imageUrl = uploadedUrl;
         } else {
-            alert("图片上传成功但未返回链接，请检查Bmob控制台或重试");
+            alert("图片上传异常，未获取到有效链接。请勿包含中文文件名重试。");
             setIsUploading(false);
-            return;
+            return; // 终止发布，防止存入空数据
         }
-      } else if (!pImg) {
-         // 强制要求图片校验，如果没传图也没填URL，拒绝提交
-         // alert("请上传图片或填写图片链接");
-         // setIsUploading(false);
-         // return;
-      }
+      } 
       
-      // 最终确认 imageUrl 格式
+      // URL 格式校验，防止存入 "侵权" 等脏数据
       if (imageUrl && !imageUrl.startsWith('http')) {
-         alert("无效的图片链接，无法发布。请重试。");
+         alert("无效的图片链接（必须以 http 开头），发布已取消。");
          setIsUploading(false);
          return;
       }
@@ -827,7 +812,9 @@ function StudioView({ Bmob, currentUser, setCurrentUser }) {
       query.set("title", pTitle);
       query.set("description", pDesc);
       query.set("git_link", pLink);
+      // 确保字段名为 image_url (下划线)
       query.set("image_url", imageUrl);
+      
       await query.save();
       
       alert("项目发布成功"); 
