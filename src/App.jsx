@@ -12,9 +12,9 @@ import {
 // ⚠️ 你的配置信息已更新，经核对完全正确
 const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID
 const BMOB_REST_API_KEY = "ab10e715d2bc9ec35256d5e0ddbdb74a"; // REST API Key (用于文件上传)
-const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (SDK 初始化)
+const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (Web SDK 初始化核心密钥)
 const BMOB_API_KEY = "0713231xX";                    // API 安全码 (API Safe Code)
-const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key (超级权限)
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
@@ -101,6 +101,15 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
   const url = p.image_url || p.imageUrl; 
   const isValidUrl = url && url.startsWith('http') && !imgError;
 
+  // 修复：确保链接包含协议头，防止跳转到当前站点的相对路径
+  const formatUrl = (link) => {
+    if (!link) return '';
+    if (link.startsWith('http://') || link.startsWith('https://')) {
+      return link;
+    }
+    return `https://${link}`;
+  };
+
   return (
     <div className="group cursor-pointer flex flex-col gap-3 relative">
       <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
@@ -124,7 +133,7 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
           {p.description && <p className="text-[#606060] text-xs mt-1 line-clamp-2">{p.description}</p>}
           <div className="flex gap-2 mt-2">
             {p.git_link ? (
-              <a href={p.git_link} target="_blank" rel="noreferrer" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>
+              <a href={formatUrl(p.git_link)} target="_blank" rel="noreferrer" className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>
             ) : (
               <span className="text-xs text-gray-400 px-2 py-1 border border-transparent flex gap-1 items-center"><Github size={12}/> 无链接</span>
             )}
@@ -160,7 +169,7 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
-          // 标准 SDK 初始化保持不变，用于数据查询
+          // 标准 SDK 初始化
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
           bmobRef.current = window.Bmob;
           
@@ -345,7 +354,7 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f]"><Menu size={24} /></button>
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveTab('home')}>
           <div className="bg-red-600 rounded-lg p-1 flex items-center justify-center"><Laptop size={16} className="text-white" /></div>
-          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">DevSpace</span>
+          <span className="text-xl font-bold tracking-tighter font-sans text-[#0f0f0f] relative top-[-1px]">NineIce</span>
         </div>
       </div>
       <div className="hidden md:flex flex-1 max-w-[600px] mx-4">
@@ -460,7 +469,8 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
           <span>全站浏览: {totalViews}</span>
         </div>
         <p className="mb-1">关于 • 开发者 • 联系方式</p>
-        <p>© 2026 DevSpace</p>
+        <p>cailixian2@gmail.com</p>
+        <p>© 2026 NineIce</p>
       </div>
     </aside>
   );
@@ -480,7 +490,6 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
       const res = await query.find();
       console.log("Projects loaded in Home:", res);
       if(Array.isArray(res)) setProjects(res);
-      // 重置更新标志
       if (setProjectsUpdated) {
         setProjectsUpdated(false);
       }
@@ -492,7 +501,6 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
   };
 
   useEffect(() => { fetchProjects(); }, [Bmob]);
-  // 当项目更新时重新加载
   useEffect(() => {
     if (projectsUpdated) {
       fetchProjects();
@@ -750,122 +758,11 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
   const [pLink, setPLink] = useState('');
   const [pImg, setPImg] = useState('');
   const [bContent, setBContent] = useState('');
-  
-  const fileInputRef = useRef(null);
-  const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState('');
-  // 核心修复1: 新增 selectedFile 状态来持久化存储文件对象
-  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); } else { alert("Bmob 未初始化"); } };
   const handleRegister = () => { if (Bmob) { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); } };
   const handleLogout = () => { if (Bmob) { Bmob.User.logout(); setCurrentUser(null); } };
-
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setSelectedFileName(file.name);
-      // 核心修复2: 保存文件对象到 State
-      setSelectedFile(file);
-      setPImg('');
-      // Show local preview immediately
-      const objectUrl = URL.createObjectURL(file);
-      setPreviewUrl(objectUrl);
-    } else {
-      setSelectedFileName('');
-      setSelectedFile(null);
-      setPreviewUrl('');
-    }
-  };
-
-  const clearSelectedFile = () => {
-    setSelectedFileName('');
-    // 核心修复3: 清除文件对象
-    setSelectedFile(null);
-    setPreviewUrl('');
-    if(fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleFileUpload = async (file) => {
-    if(!file) return null;
-
-    // --- 新增：文件大小检查 (限制 5MB) ---
-    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-    if (file.size > MAX_SIZE) {
-      throw new Error(`图片过大 (${(file.size / 1024 / 1024).toFixed(2)}MB)，请选择 5MB 以下的图片`);
-    }
-    
-    if (file.size === 0) {
-      throw new Error("文件大小为 0，请选择有效图片");
-    }
-
-    try {
-      // 1. 文件名净化：只保留字母数字，防止中文乱码导致上传失败
-      const extension = file.name.split('.').pop() || 'jpg';
-      const randomStr = Math.random().toString(36).substring(2, 8);
-      const safeName = `img${Date.now()}${randomStr}.${extension}`; 
-      
-      console.log("Step 2.1: 准备上传 (REST API)", safeName);
-      
-      // --- 关键修复：切换为原生 Fetch + REST API 上传 ---
-      // 绕过 SDK 可能存在的环境兼容性问题
-      
-      const response = await fetch(`https://api.bmobcloud.com/2/files/${safeName}`, {
-        method: 'POST',
-        headers: {
-          'X-Bmob-Application-Id': BMOB_APP_ID,
-          'X-Bmob-REST-API-Key': BMOB_REST_API_KEY,
-          'Content-Type': file.type || 'application/octet-stream',
-        },
-        body: file // 直接发送文件对象
-      });
-
-      console.log("Step 2.2: REST API 响应状态", response.status);
-
-      if (!response.ok) {
-        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
-      }
-
-      const res = await response.json();
-      console.log("Step 2.3: 上传返回", res);
-      
-      // Check for Bmob logic errors despite HTTP 200
-      if (res.code && res.error) {
-          throw new Error(`${res.code}: ${res.error}`);
-      }
-
-      let url = res.url || res.fileUrl;
-      
-      // 如果常规字段没找到，尝试暴力搜索 URL
-      if (!url) {
-         try {
-           const jsonString = JSON.stringify(res);
-           // 匹配 http 或 https 开头的链接
-           const match = jsonString.match(/(https?:\/\/[^"\s\}]+)/);
-           if (match) {
-             url = match[0];
-             // 去除可能的尾部引号
-             url = url.replace(/["\}]+$/, ''); 
-             console.log("暴力提取到 URL:", url);
-           }
-         } catch(e) {}
-      }
-
-      if (url) {
-        if (url.startsWith('http:')) {
-          url = url.replace('http:', 'https:');
-        }
-        return url;
-      } else {
-        console.error("REST API 响应中未包含 url 字段", res);
-        return null;
-      }
-    } catch(e) {
-      console.error("Upload Detailed Error:", e);
-      throw new Error(e.message); 
-    }
-  };
 
   const handleAddProject = async (e) => {
     e.preventDefault();
@@ -879,44 +776,6 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
         return;
       }
       
-      // Step 1: 上传图片 (使用持久化的 selectedFile)
-      if (selectedFile) {
-        try {
-            const uploadedUrl = await handleFileUpload(selectedFile);
-            if(uploadedUrl) {
-                imageUrl = uploadedUrl;
-            } else {
-                // 如果没有返回链接，询问用户是否继续
-                if (!confirm("⚠️ 图片上传成功但未返回链接，是否跳过图片继续发布？")) {
-                    setIsUploading(false);
-                    return;
-                }
-            }
-        } catch (uploadErr) {
-            // 捕获上传错误
-            let errorMsg = uploadErr.message;
-            if (String(errorMsg).includes("502")) {
-               errorMsg = "服务器网关错误 (502)。请检查网络或稍后重试。";
-            }
-            if (String(errorMsg).includes("10007")) {
-               errorMsg = "Bmob文件服务需绑定域名。请去Bmob后台'设置-域名管理'绑定，或使用下方【外部图片链接】功能。";
-            }
-            
-            // 关键：允许失败后继续，智能判断是否有备用链接
-            let confirmMsg = `❌ 图片上传失败: ${errorMsg}\n\n是否跳过图片，仅发布文字内容？`;
-            if (pImg) {
-                confirmMsg = `❌ 本地图片上传失败: ${errorMsg}\n\n检测到您填写了外部链接，是否改用外部链接 (${pImg}) 继续发布？`;
-            }
-            
-            if (!confirm(confirmMsg)) {
-                setIsUploading(false);
-                return;
-            }
-            // 如果用户点击确定，且 pImg 有值，imageUrl 已经在开头被赋值为 pImg，逻辑闭环
-        }
-      }
-      
-      // Step 2: 关联数据
       const query = Bmob.Query("projects");
       query.set("title", pTitle);
       query.set("description", pDesc);
@@ -935,16 +794,14 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
       
       if (setProjectsUpdated) setProjectsUpdated(true);
       
-      alert(`✅ 发布成功! ObjectId: ${savedProject.objectId}\n\n请去 Bmob 后台手动刷新列表查看。`); 
+      alert(`✅ 发布成功!`); 
       
       // Reset form
       setPTitle(''); setPDesc(''); setPImg(''); setPLink('');
-      clearSelectedFile();
     } catch (err) {
       console.error("Save error:", err);
       alert("发布失败: " + (err.error || err.message || JSON.stringify(err)));
     } finally {
-      // 3. 无论成功失败，必须重置上传状态，防止按钮卡死
       setIsUploading(false);
     }
   };
@@ -990,66 +847,27 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
     <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn text-[#0f0f0f] px-4">
       <div className="flex justify-between items-center mb-8 border-b border-[#e5e5e5] pb-4"><h2 className="text-2xl font-bold flex items-center gap-2"><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className="text-sm text-[#606060] hidden sm:inline">当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f] transition-colors font-medium text-sm border border-[#e5e5e5] px-3 py-1.5 rounded-full hover:bg-[#f2f2f2]"><LogOut size={16}/> 退出</button></div></div>
       
-      {/* 诊断提示栏 */}
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-6 flex items-start gap-3">
-        <HelpCircle size={20} className="text-yellow-600 shrink-0 mt-0.5" />
-        <div className="text-sm text-yellow-800">
-          <p className="font-bold mb-1">数据写进去但后台看不到？</p>
-          <ul className="list-disc list-inside space-y-1 text-xs">
-            <li><strong>你的 ID 已核对无误！</strong> 请手动刷新 Bmob 后台网页（按 F5 或点右上角刷新按钮）。</li>
-            <li>如果上传图片报 10007 错误，请尝试使用下方的 <strong>外部图片链接</strong> 功能。</li>
-          </ul>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
           <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]"><div className="p-2 bg-blue-50 rounded-full"><Upload size={20} className="text-[#065fd4]"/></div><h3 className="font-bold text-lg text-[#0f0f0f]">发布项目</h3></div>
           <form onSubmit={handleAddProject} className="flex-1 flex flex-col gap-4">
             <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目标题</label><input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="输入项目标题..." className="studio-input w-full"/></div>
             <div className="flex-1"><label className="block text-xs font-medium text-[#606060] mb-1.5">项目介绍</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="描述一下这个项目的功能和亮点..." className="studio-input w-full h-full resize-none min-h-[150px]"/></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-[#606060] mb-1.5">项目封面 (本地上传)</label>
-                {selectedFileName ? (
-                  <div className="flex flex-col gap-2">
-                    {previewUrl && <img src={previewUrl} className="w-full h-24 object-cover rounded border border-gray-200" alt="Preview" />}
-                    <div className="studio-input flex items-center justify-between bg-blue-50 border-blue-200">
-                      <div className="flex items-center gap-2 overflow-hidden"><FileCheck size={14} className="text-green-600 flex-shrink-0"/><span className="text-xs truncate">{selectedFileName}</span></div>
-                      <button type="button" onClick={clearSelectedFile} className="text-gray-400 hover:text-red-500"><X size={14}/></button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="relative group">
-                    <input type="file" ref={fileInputRef} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onChange={handleFileChange} accept="image/*"/>
-                    <div className="studio-input flex items-center justify-center gap-2 cursor-pointer group-hover:bg-gray-50 transition-colors text-gray-500 h-[46px]">
-                      <ImageIcon size={16}/> <span className="text-xs">点击上传图片</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接 (GitHub)</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input w-full"/></div>
-            </div>
             
-            {/* 新增：外部图片链接输入框 */}
-            <div>
-               <label className="block text-xs font-medium text-[#606060] mb-1.5 flex items-center gap-1"><LinkIcon size={12}/> 或使用外部图片链接 (推荐)</label>
-               <input 
-                 value={pImg} 
-                 onChange={e=> {
-                   setPImg(e.target.value);
-                   // 如果用户开始输入链接，则清空已选择的文件，避免冲突
-                   if (e.target.value && selectedFile) {
-                     clearSelectedFile();
-                   }
-                 }} 
-                 placeholder="例如: https://i.imgur.com/example.png" 
-                 className="studio-input w-full"
-               />
-               <p className="text-[10px] text-gray-400 mt-1">如果本地上传失败，可将图片上传到图床后填入此处。</p>
+            <div className="grid grid-cols-1 gap-4">
+               <div>
+                 <label className="block text-xs font-medium text-[#606060] mb-1.5 flex items-center gap-1"><LinkIcon size={12}/> 项目封面链接 (推荐使用图床)</label>
+                 <input 
+                   value={pImg} 
+                   onChange={e=>setPImg(e.target.value)} 
+                   placeholder="例如: https://s2.loli.net/2024/01/01/example.png" 
+                   className="studio-input w-full"
+                 />
+               </div>
+               <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接 (GitHub)</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input w-full"/></div>
             </div>
 
-            <div className="mt-auto pt-4"><button disabled={isUploading} className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed">{isUploading ? '正在上传图片...' : '发布项目'}</button></div>
+            <div className="mt-auto pt-4"><button disabled={isUploading} className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed">{isUploading ? '正在发布...' : '发布项目'}</button></div>
           </form>
         </div>
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
