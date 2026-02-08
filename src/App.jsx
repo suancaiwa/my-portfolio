@@ -5,15 +5,16 @@ import {
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
-  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle
+  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle, Link as LinkIcon
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
 // ⚠️ 你的配置信息已更新，经核对完全正确
-const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID (主要用于核对)
-const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (Web SDK 初始化核心密钥)
+const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID
+const BMOB_REST_API_KEY = "ab10e715d2bc9ec35256d5e0ddbdb74a"; // REST API Key (用于文件上传)
+const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (SDK 初始化)
 const BMOB_API_KEY = "0713231xX";                    // API 安全码 (API Safe Code)
-const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key (超级权限)
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
@@ -30,6 +31,9 @@ const getBmobErrorMsg = (err) => {
   }
   if (errorStr.includes("MasterKey") || (err.error && err.error.includes("MasterKey"))) {
     return "MASTER_KEY_MISSING";
+  }
+  if (errorStr.includes("502")) {
+    return "SERVER_GATEWAY_ERROR (502)";
   }
   return err.error || errorStr;
 };
@@ -156,13 +160,12 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
-          // Web SDK 标准初始化：Secret Key + API Safe Code
-          window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY, BMOB_MASTER_KEY.includes("你的") ? "" : BMOB_MASTER_KEY);
+          // 标准 SDK 初始化保持不变，用于数据查询
+          window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
           bmobRef.current = window.Bmob;
           
           console.log(`%c [Bmob Init Success]`, "color: green; font-weight: bold; font-size: 14px;");
           console.log(`Current App ID (Check): ${BMOB_APP_ID}`);
-          console.log(`Using Secret Key: ${BMOB_SECRET_KEY.slice(0,5)}...`);
           
           const current = window.Bmob.User.current();
           if (current) {
@@ -752,6 +755,8 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState('');
+  // 核心修复1: 新增 selectedFile 状态来持久化存储文件对象
+  const [selectedFile, setSelectedFile] = useState(null);
 
   const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); } else { alert("Bmob 未初始化"); } };
   const handleRegister = () => { if (Bmob) { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); } };
@@ -761,81 +766,104 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
     const file = e.target.files[0];
     if (file) {
       setSelectedFileName(file.name);
+      // 核心修复2: 保存文件对象到 State
+      setSelectedFile(file);
       setPImg('');
       // Show local preview immediately
       const objectUrl = URL.createObjectURL(file);
       setPreviewUrl(objectUrl);
     } else {
       setSelectedFileName('');
+      setSelectedFile(null);
       setPreviewUrl('');
     }
   };
 
   const clearSelectedFile = () => {
     setSelectedFileName('');
+    // 核心修复3: 清除文件对象
+    setSelectedFile(null);
     setPreviewUrl('');
     if(fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleFileUpload = async (file) => {
     if(!file) return null;
+
+    // --- 新增：文件大小检查 (限制 5MB) ---
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+      throw new Error(`图片过大 (${(file.size / 1024 / 1024).toFixed(2)}MB)，请选择 5MB 以下的图片`);
+    }
+    
+    if (file.size === 0) {
+      throw new Error("文件大小为 0，请选择有效图片");
+    }
+
     try {
       // 1. 文件名净化：只保留字母数字，防止中文乱码导致上传失败
-      const extension = file.name.split('.').pop();
+      const extension = file.name.split('.').pop() || 'jpg';
       const randomStr = Math.random().toString(36).substring(2, 8);
       const safeName = `img${Date.now()}${randomStr}.${extension}`; 
       
-      console.log("开始上传文件:", safeName);
-      if (!Bmob) throw new Error("Bmob 未初始化");
+      console.log("Step 2.1: 准备上传 (REST API)", safeName);
       
-      const bmobFile = Bmob.File(safeName, file);
-      const res = await bmobFile.save();
+      // --- 关键修复：切换为原生 Fetch + REST API 上传 ---
+      // 绕过 SDK 可能存在的环境兼容性问题
       
-      // --- 关键修改：直接弹窗显示原始响应，方便调试 ---
-      alert("【调试信息】Bmob上传响应:\n" + JSON.stringify(res, null, 2));
-      
-      let url = null;
-      
-      // --- 暴力URL提取逻辑 ---
-      // 1. 常规数组/对象检查
-      if (Array.isArray(res) && res.length > 0) {
-        url = res[0].url || res[0].fileUrl || res[0].file_url || (res[0].success && res[0].url);
-        // JSON字符串解析兜底
-        if (!url && typeof res[0] === 'string') {
-           try { const parsed = JSON.parse(res[0]); url = parsed.url || parsed.fileUrl; } catch(e) {}
-        }
-      } else if (res && typeof res === 'object') {
-        url = res.url || res.fileUrl || res.file_url;
+      const response = await fetch(`https://api.bmobcloud.com/2/files/${safeName}`, {
+        method: 'POST',
+        headers: {
+          'X-Bmob-Application-Id': BMOB_APP_ID,
+          'X-Bmob-REST-API-Key': BMOB_REST_API_KEY,
+          'Content-Type': file.type || 'application/octet-stream',
+        },
+        body: file // 直接发送文件对象
+      });
+
+      console.log("Step 2.2: REST API 响应状态", response.status);
+
+      if (!response.ok) {
+        throw new Error(`HTTP Error ${response.status}: ${response.statusText}`);
       }
+
+      const res = await response.json();
+      console.log("Step 2.3: 上传返回", res);
       
-      // 2. 如果还没找到，尝试递归搜索任何看起来像URL的字符串
+      // Check for Bmob logic errors despite HTTP 200
+      if (res.code && res.error) {
+          throw new Error(`${res.code}: ${res.error}`);
+      }
+
+      let url = res.url || res.fileUrl;
+      
+      // 如果常规字段没找到，尝试暴力搜索 URL
       if (!url) {
          try {
            const jsonString = JSON.stringify(res);
-           // 简单的正则匹配 http 链接
-           const match = jsonString.match(/https?:\/\/[^"\s]+/);
+           // 匹配 http 或 https 开头的链接
+           const match = jsonString.match(/(https?:\/\/[^"\s\}]+)/);
            if (match) {
              url = match[0];
+             // 去除可能的尾部引号
+             url = url.replace(/["\}]+$/, ''); 
              console.log("暴力提取到 URL:", url);
            }
          } catch(e) {}
       }
 
       if (url) {
-        // Enforce HTTPS
         if (url.startsWith('http:')) {
           url = url.replace('http:', 'https:');
         }
-        console.log("最终提取的 URL:", url);
         return url;
       } else {
-        console.error("无法从响应中提取 URL");
+        console.error("REST API 响应中未包含 url 字段", res);
         return null;
       }
     } catch(e) {
-      console.error("Upload error:", e);
-      alert("上传出错: " + (e.message || JSON.stringify(e)));
-      return null;
+      console.error("Upload Detailed Error:", e);
+      throw new Error(e.message); 
     }
   };
 
@@ -851,18 +879,40 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
         return;
       }
       
-      // Step 1: 上传图片
-      if (fileInputRef.current && fileInputRef.current.files[0]) {
-        const file = fileInputRef.current.files[0];
-        const uploadedUrl = await handleFileUpload(file);
-        
-        if(uploadedUrl) {
-            imageUrl = uploadedUrl;
-        } else {
-            // --- 关键修改：如果上传失败，阻止继续保存 ---
-            alert("❌ 图片上传失败，无法获取到 URL！\n\n请检查弹出的调试信息。如果 Bmob 返回了空数据，可能是账号流量耗尽或配置问题。本次发布已取消，防止产生空数据。");
-            setIsUploading(false);
-            return;
+      // Step 1: 上传图片 (使用持久化的 selectedFile)
+      if (selectedFile) {
+        try {
+            const uploadedUrl = await handleFileUpload(selectedFile);
+            if(uploadedUrl) {
+                imageUrl = uploadedUrl;
+            } else {
+                // 如果没有返回链接，询问用户是否继续
+                if (!confirm("⚠️ 图片上传成功但未返回链接，是否跳过图片继续发布？")) {
+                    setIsUploading(false);
+                    return;
+                }
+            }
+        } catch (uploadErr) {
+            // 捕获上传错误
+            let errorMsg = uploadErr.message;
+            if (String(errorMsg).includes("502")) {
+               errorMsg = "服务器网关错误 (502)。请检查网络或稍后重试。";
+            }
+            if (String(errorMsg).includes("10007")) {
+               errorMsg = "Bmob文件服务需绑定域名。请去Bmob后台'设置-域名管理'绑定，或使用下方【外部图片链接】功能。";
+            }
+            
+            // 关键：允许失败后继续，智能判断是否有备用链接
+            let confirmMsg = `❌ 图片上传失败: ${errorMsg}\n\n是否跳过图片，仅发布文字内容？`;
+            if (pImg) {
+                confirmMsg = `❌ 本地图片上传失败: ${errorMsg}\n\n检测到您填写了外部链接，是否改用外部链接 (${pImg}) 继续发布？`;
+            }
+            
+            if (!confirm(confirmMsg)) {
+                setIsUploading(false);
+                return;
+            }
+            // 如果用户点击确定，且 pImg 有值，imageUrl 已经在开头被赋值为 pImg，逻辑闭环
         }
       }
       
@@ -870,27 +920,22 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
       const query = Bmob.Query("projects");
       query.set("title", pTitle);
       query.set("description", pDesc);
-      // 确保 git_link 为字符串
       query.set("git_link", String(pLink || "")); 
       query.set("image_url", imageUrl || "");
       
-      // --- 强制设置 ACL 为公开读写 ---
       try {
         const acl = Bmob.ACL();
         acl.setPublicReadAccess(true);
         acl.setPublicWriteAccess(true);
         query.set("ACL", acl);
-      } catch(e) {
-        console.log("ACL set skipped (SDK version diff)", e);
-      }
+      } catch(e) { console.log("ACL set skipped"); }
       
       const savedProject = await query.save();
       console.log("Saved project:", savedProject);
       
       if (setProjectsUpdated) setProjectsUpdated(true);
       
-      // 提示用户刷新后台查看
-      alert(`✅ 发布成功! ObjectId: ${savedProject.objectId}\n\n⚠️ 重要提示：Bmob 后台网页列表【不会自动刷新】！\n请手动点击后台网页右上角的刷新按钮 🔄 查看新数据。`); 
+      alert(`✅ 发布成功! ObjectId: ${savedProject.objectId}\n\n请去 Bmob 后台手动刷新列表查看。`); 
       
       // Reset form
       setPTitle(''); setPDesc(''); setPImg(''); setPLink('');
@@ -899,6 +944,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
       console.error("Save error:", err);
       alert("发布失败: " + (err.error || err.message || JSON.stringify(err)));
     } finally {
+      // 3. 无论成功失败，必须重置上传状态，防止按钮卡死
       setIsUploading(false);
     }
   };
@@ -951,7 +997,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
           <p className="font-bold mb-1">数据写进去但后台看不到？</p>
           <ul className="list-disc list-inside space-y-1 text-xs">
             <li><strong>你的 ID 已核对无误！</strong> 请手动刷新 Bmob 后台网页（按 F5 或点右上角刷新按钮）。</li>
-            <li>如果图片上传依然失败，请注意查看弹出的【调试信息】内容。</li>
+            <li>如果上传图片报 10007 错误，请尝试使用下方的 <strong>外部图片链接</strong> 功能。</li>
           </ul>
         </div>
       </div>
@@ -964,7 +1010,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
             <div className="flex-1"><label className="block text-xs font-medium text-[#606060] mb-1.5">项目介绍</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="描述一下这个项目的功能和亮点..." className="studio-input w-full h-full resize-none min-h-[150px]"/></div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-[#606060] mb-1.5">项目封面</label>
+                <label className="block text-xs font-medium text-[#606060] mb-1.5">项目封面 (本地上传)</label>
                 {selectedFileName ? (
                   <div className="flex flex-col gap-2">
                     {previewUrl && <img src={previewUrl} className="w-full h-24 object-cover rounded border border-gray-200" alt="Preview" />}
@@ -982,8 +1028,27 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
                   </div>
                 )}
               </div>
-              <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input w-full"/></div>
+              <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接 (GitHub)</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input w-full"/></div>
             </div>
+            
+            {/* 新增：外部图片链接输入框 */}
+            <div>
+               <label className="block text-xs font-medium text-[#606060] mb-1.5 flex items-center gap-1"><LinkIcon size={12}/> 或使用外部图片链接 (推荐)</label>
+               <input 
+                 value={pImg} 
+                 onChange={e=> {
+                   setPImg(e.target.value);
+                   // 如果用户开始输入链接，则清空已选择的文件，避免冲突
+                   if (e.target.value && selectedFile) {
+                     clearSelectedFile();
+                   }
+                 }} 
+                 placeholder="例如: https://i.imgur.com/example.png" 
+                 className="studio-input w-full"
+               />
+               <p className="text-[10px] text-gray-400 mt-1">如果本地上传失败，可将图片上传到图床后填入此处。</p>
+            </div>
+
             <div className="mt-auto pt-4"><button disabled={isUploading} className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed">{isUploading ? '正在上传图片...' : '发布项目'}</button></div>
           </form>
         </div>
