@@ -5,16 +5,16 @@ import {
   Home, Compass, LayoutDashboard, Clock, Upload, X,
   Github, Code, Lock, Loader2, AlertTriangle, PenTool,
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
-  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle, Link as LinkIcon
+  Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle, Link as LinkIcon,
+  ChevronLeft, BookOpen, Layers, Edit3, Eye as EyeIcon, RefreshCw
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
-// ⚠️ 你的配置信息已更新，经核对完全正确
 const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID
-const BMOB_REST_API_KEY = "ab10e715d2bc9ec35256d5e0ddbdb74a"; // REST API Key (用于文件上传)
-const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key (Web SDK 初始化核心密钥)
-const BMOB_API_KEY = "0713231xX";                    // API 安全码 (API Safe Code)
-const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key (超级权限)
+const BMOB_REST_API_KEY = "ab10e715d2bc9ec35256d5e0ddbdb74a"; // REST API Key
+const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key
+const BMOB_API_KEY = "0713231xX";                    // API Safe Code
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
@@ -38,6 +38,87 @@ const getBmobErrorMsg = (err) => {
   return err.error || errorStr;
 };
 
+// --- 内置轻量级 Markdown 解析器 (零依赖) ---
+// 这保证了在任何网络环境下都能解析标题、表格、列表等
+const parseMarkdownSafe = (markdownText) => {
+  if (!markdownText) return '';
+
+  let html = markdownText;
+
+  // 1. 转义 HTML (防止 XSS) - 简单版
+  html = html.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // 2. 解析代码块 (```code```)
+  html = html.replace(/```([\s\S]*?)```/gm, '<pre><code>$1</code></pre>');
+
+  // 3. 解析表格 (Table) - 核心逻辑
+  // 匹配类似 | A | B | \n |---|---| 的结构
+  const tableRegex = /((?:\|.*\|\r?\n)+)/g;
+  html = html.replace(tableRegex, (match) => {
+    // 忽略单纯的分隔线或代码块中的内容
+    if (!match.includes('|')) return match;
+    
+    const rows = match.trim().split('\n').map(row => row.trim());
+    if (rows.length < 2) return match;
+
+    // 检查第二行是否是分隔符 (---|---)
+    const isTable = rows[1].includes('---');
+    if (!isTable) return match;
+
+    let tableHtml = '<div class="table-container"><table>';
+    
+    // 表头
+    const headers = rows[0].split('|').filter(cell => cell.trim() !== '');
+    tableHtml += '<thead><tr>' + headers.map(h => `<th>${h.trim()}</th>`).join('') + '</tr></thead>';
+    
+    // 表体
+    tableHtml += '<tbody>';
+    for (let i = 2; i < rows.length; i++) {
+        const cells = rows[i].split('|').filter(cell => cell.trim() !== '');
+        if (cells.length > 0) {
+            tableHtml += '<tr>' + cells.map(c => `<td>${c.trim()}</td>`).join('') + '</tr>';
+        }
+    }
+    tableHtml += '</tbody></table></div>';
+    return tableHtml;
+  });
+
+  // 4. 解析标题 (Headers)
+  html = html
+    .replace(/^###### (.*$)/gim, '<h6>$1</h6>')
+    .replace(/^##### (.*$)/gim, '<h5>$1</h5>')
+    .replace(/^#### (.*$)/gim, '<h4>$1</h4>')
+    .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+    .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+    .replace(/^# (.*$)/gim, '<h1>$1</h1>');
+
+  // 5. 解析图片 (![alt](url))
+  html = html.replace(/!\[([^\]]+)\]\(([^\)]+)\)/gim, '<img src="$2" alt="$1" class="md-img" />');
+
+  // 6. 解析链接 ([text](url))
+  html = html.replace(/\[([^\]]+)\]\(([^\)]+)\)/gim, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+  // 7. 解析粗体/斜体
+  html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
+
+  // 8. 解析列表 (- item)
+  html = html.replace(/^\s*-\s+(.*$)/gim, '<ul><li>$1</li></ul>');
+  // 修复紧邻的列表标签 (简单合并)
+  html = html.replace(/<\/ul>\s*<ul>/gim, '');
+
+  // 9. 解析段落 (换行)
+  // 不要在 pre, ul, table 内部加 br
+  html = html.replace(/\n/gim, '<br />');
+  
+  // 清理多余的 br (例如标题后)
+  html = html.replace(/<\/h(\d)><br \/>/gim, '</h$1>');
+  html = html.replace(/<\/pre><br \/>/gim, '</pre>');
+  html = html.replace(/<\/table><\/div><br \/>/gim, '</table></div>');
+
+  return html;
+};
+
 // --- 子组件：互动小宠物 ---
 const InteractivePet = ({ currentUser, xp, level }) => {
   const [message, setMessage] = useState("");
@@ -47,9 +128,9 @@ const InteractivePet = ({ currentUser, xp, level }) => {
     "今天也要加油写代码哦！",
     "记得多喝水~",
     "你的项目真棒！",
-    "快去留言板互动吧！",
+    "预览功能已经修复啦！",
     "冲刺 15 级大神！",
-    "我在看你写 Bug (开玩笑的)",
+    "表格现在能显示了吗？",
     "休息一下眼睛吧"
   ];
 
@@ -96,12 +177,11 @@ const InteractivePet = ({ currentUser, xp, level }) => {
 };
 
 // --- 子组件：项目卡片 ---
-const ProjectCard = ({ p, isAdmin, handleDelete }) => {
+const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail }) => {
   const [imgError, setImgError] = useState(false);
   const url = p.image_url || p.imageUrl; 
   const isValidUrl = url && url.startsWith('http') && !imgError;
 
-  // 修复：确保链接包含协议头，防止跳转到当前站点的相对路径
   const formatUrl = (link) => {
     if (!link) return '';
     if (link.startsWith('http://') || link.startsWith('https://')) {
@@ -111,7 +191,7 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
   };
 
   return (
-    <div className="group cursor-pointer flex flex-col gap-3 relative">
+    <div className="group cursor-pointer flex flex-col gap-3 relative" onClick={() => onViewDetail(p)}>
       <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-200 border border-gray-100 shadow-sm">
         {isValidUrl ? (
           <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" onError={() => setImgError(true)} alt={p.title}/>
@@ -122,8 +202,26 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
           </div>
         )}
         {isAdmin && (
-          <button onClick={(e) => handleDelete(e, p.objectId)} className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-md z-10" title="删除项目"><Trash2 size={16} /></button>
+          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleEdit(p); }} 
+              className="bg-blue-600 text-white p-1.5 rounded-full shadow-md hover:bg-blue-700 transition-colors" 
+              title="编辑项目"
+            >
+              <Edit3 size={16} />
+            </button>
+            <button 
+              onClick={(e) => handleDelete(e, p.objectId)} 
+              className="bg-red-600 text-white p-1.5 rounded-full shadow-md hover:bg-red-700 transition-colors" 
+              title="删除项目"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
         )}
+        <div className="absolute bottom-2 right-2 bg-black/50 text-white text-[10px] px-2 py-1 rounded backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+            点击查看详情
+        </div>
       </div>
       <div className="flex gap-3 pr-4 items-start">
         <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0 shadow-sm"></div>
@@ -137,13 +235,99 @@ const ProjectCard = ({ p, isAdmin, handleDelete }) => {
             ) : (
               <span className="text-xs text-gray-400 px-2 py-1 border border-transparent flex gap-1 items-center"><Github size={12}/> 无链接</span>
             )}
-            <div className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]"><ExternalLink size={12} /> 详情</div>
+            <button onClick={(e) => { e.stopPropagation(); onViewDetail(p); }} className="text-xs bg-[#f2f2f2] hover:bg-[#e5e5e5] px-2 py-1 rounded text-[#0f0f0f] flex gap-1 items-center transition-colors border border-[#e5e5e5]"><ExternalLink size={12} /> 详情</button>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+// --- 子组件：项目详情页 (文档模式 - 内置解析) ---
+const ProjectDetailView = ({ project, onBack }) => {
+  const [imgError, setImgError] = useState(false);
+  const url = project.image_url || project.imageUrl;
+  
+  const formatUrl = (link) => {
+    if (!link) return '';
+    if (link.startsWith('http://') || link.startsWith('https://')) return link;
+    return `https://${link}`;
+  };
+
+  const htmlContent = parseMarkdownSafe(project.content || '');
+
+  return (
+    <div className="bg-white min-h-full animate-fadeIn pb-10">
+      {/* 顶部导航 */}
+      <div className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-[#e5e5e5] px-4 py-3 flex items-center gap-3 z-10">
+        <button onClick={onBack} className="p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f] transition-colors">
+          <ChevronLeft size={24} />
+        </button>
+        <span className="font-bold text-lg truncate">项目详情</span>
+        <div className="ml-auto flex gap-2">
+            {project.git_link && (
+                <a href={formatUrl(project.git_link)} target="_blank" rel="noreferrer" className="bg-[#0f0f0f] text-white px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:bg-[#333] transition-colors">
+                   <Github size={14}/> 源码仓库
+                </a>
+            )}
+        </div>
+      </div>
+
+      <div className="max-w-[800px] mx-auto px-6 py-8">
+         {/* 头部信息 */}
+         <div className="mb-8">
+             <div className="flex items-center gap-2 text-sm text-[#606060] mb-4">
+                 <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-medium">项目文档</span>
+                 <span>•</span>
+                 <span>发布于 {project.createdAt}</span>
+             </div>
+             <h1 className="text-3xl sm:text-4xl font-extrabold text-[#0f0f0f] leading-tight mb-6">{project.title}</h1>
+             
+             {/* 封面大图 */}
+             <div className="w-full aspect-video bg-gray-100 rounded-xl overflow-hidden border border-[#e5e5e5] shadow-sm mb-8">
+                {url && !imgError ? (
+                    <img src={url} className="w-full h-full object-cover" onError={() => setImgError(true)} alt={project.title} />
+                ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-gray-400 gap-2">
+                        <ImageIcon size={48} />
+                        <span className="text-sm">暂无配图</span>
+                    </div>
+                )}
+             </div>
+
+             {/* 摘要引用 */}
+             {project.description && (
+                 <div className="bg-[#f9f9f9] border-l-4 border-[#065fd4] p-4 rounded-r-lg mb-8 text-[#0f0f0f] italic text-base leading-relaxed">
+                     {project.description}
+                 </div>
+             )}
+         </div>
+
+         {/* 详细内容区域 (Markdown Rendered) */}
+         <div className="markdown-body text-[#0f0f0f]">
+             {project.content ? (
+                 <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
+             ) : (
+                 <div className="text-center py-10 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                     <FileCheck size={32} className="mx-auto mb-2 opacity-50"/>
+                     <p>该项目暂无详细文档内容。</p>
+                 </div>
+             )}
+         </div>
+
+         <div className="mt-12 pt-8 border-t border-[#e5e5e5] flex justify-between items-center">
+             <div className="text-sm text-[#606060] flex items-center gap-1">
+                 <Clock size={14} />
+                 Last updated on {project.updatedAt || project.createdAt}
+             </div>
+             <button className="flex items-center gap-2 text-[#606060] hover:text-[#065fd4] transition-colors">
+                 <Share2 size={18} /> 分享项目
+             </button>
+         </div>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const bmobRef = useRef(null);
@@ -155,8 +339,51 @@ export default function App() {
   const [globalError, setGlobalError] = useState(null);
   const [totalViews, setTotalViews] = useState(0);
   const [projectsUpdated, setProjectsUpdated] = useState(false);
+  
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [editingProject, setEditingProject] = useState(null);
 
   useEffect(() => {
+    // Inject custom styles with Enhanced Markdown support (Tables fixed)
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .custom-scrollbar::-webkit-scrollbar { width: 8px; }
+      .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+      .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #aaa; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .studio-input { @apply bg-[#f9f9f9] border border-[#ccc] rounded p-3 text-[#0f0f0f] outline-none focus:border-[#065fd4] placeholder-gray-500 text-sm focus:bg-white transition-colors focus:ring-1 focus:ring-[#065fd4]; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
+      .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+      
+      /* Markdown Styles - Enhanced for Visibility */
+      .markdown-body { font-size: 16px; line-height: 1.7; color: #24292e; word-wrap: break-word; }
+      .markdown-body h1 { font-size: 2em; font-weight: 800; margin-top: 24px; margin-bottom: 16px; padding-bottom: 0.3em; border-bottom: 1px solid #eaecef; }
+      .markdown-body h2 { font-size: 1.5em; font-weight: 700; margin-top: 24px; margin-bottom: 16px; padding-bottom: 0.3em; border-bottom: 1px solid #eaecef; }
+      .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin-top: 24px; margin-bottom: 16px; }
+      .markdown-body p { margin-bottom: 16px; }
+      .markdown-body ul { list-style-type: disc; padding-left: 2em; margin-bottom: 16px; }
+      .markdown-body ol { list-style-type: decimal; padding-left: 2em; margin-bottom: 16px; }
+      .markdown-body blockquote { border-left: 4px solid #dfe2e5; color: #6a737d; padding: 0 1em; margin: 0 0 16px 0; background-color: #f9f9f9; padding-top: 8px; padding-bottom: 8px; }
+      .markdown-body code { background-color: rgba(27,31,35,0.05); padding: 0.2em 0.4em; border-radius: 3px; font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace; font-size: 85%; }
+      .markdown-body pre { background-color: #f6f8fa; padding: 16px; overflow: auto; border-radius: 6px; margin-bottom: 16px; border: 1px solid #e1e4e8; }
+      .markdown-body pre code { background-color: transparent; padding: 0; font-size: 100%; word-break: normal; white-space: pre; }
+      
+      /* Table Styles - Force Visibility */
+      .table-container { overflow-x: auto; margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
+      .markdown-body table { width: 100%; border-collapse: collapse; min-width: 400px; }
+      .markdown-body table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
+      .markdown-body table tr:nth-child(2n) { background-color: #f6f8fa; }
+      .markdown-body table th, .markdown-body table td { padding: 12px 13px; border: 1px solid #dfe2e5; }
+      .markdown-body table th { background-color: #f0f0f0; font-weight: 700; text-align: left; }
+      
+      .markdown-body img { max-width: 100%; box-sizing: content-box; background-color: #fff; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 16px; }
+      .markdown-body a { color: #0366d6; text-decoration: none; }
+      .markdown-body a:hover { text-decoration: underline; }
+      .markdown-body hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0; }
+    `;
+    document.head.appendChild(style);
+
     if (window.Bmob) {
       initBmob();
       return;
@@ -169,13 +396,8 @@ export default function App() {
     function initBmob() {
       if (BMOB_SECRET_KEY && BMOB_API_KEY) {
         try {
-          // 标准 SDK 初始化
           window.Bmob.initialize(BMOB_SECRET_KEY, BMOB_API_KEY);
           bmobRef.current = window.Bmob;
-          
-          console.log(`%c [Bmob Init Success]`, "color: green; font-weight: bold; font-size: 14px;");
-          console.log(`Current App ID (Check): ${BMOB_APP_ID}`);
-          
           const current = window.Bmob.User.current();
           if (current) {
              setCurrentUser(current);
@@ -183,7 +405,6 @@ export default function App() {
              query.get(current.objectId).then(userObj => {
                 setCurrentUser(prev => ({...prev, xp: userObj.xp || 0, level: userObj.level || 1, lastCheckInDate: userObj.lastCheckInDate}));
              }).catch(e => {
-                 console.log("Sync user failed", e);
                  if(e && e.code === 206) { 
                      window.Bmob.User.logout();
                      setCurrentUser(null);
@@ -255,22 +476,14 @@ export default function App() {
 
       await updateQuery.save();
 
-      const updatedUser = { 
-          ...currentUser, 
-          xp: newXP, 
-          level: newLevel,
-          ...extraUpdates
-      };
+      const updatedUser = { ...currentUser, xp: newXP, level: newLevel, ...extraUpdates };
       setCurrentUser(updatedUser);
       
       if (newLevel > currentLevel) {
         alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
       }
     } catch (e) {
-      console.error("XP update failed", e);
-      if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") {
-          setGlobalError("MASTER_KEY_MISSING");
-      }
+      if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") setGlobalError("MASTER_KEY_MISSING");
     }
   };
 
@@ -285,21 +498,33 @@ export default function App() {
     alert("签到成功！经验 +5");
   };
 
+  const startEditProject = (project) => {
+    setEditingProject(project);
+    setActiveTab('studio');
+    setSelectedProject(null); 
+  };
+
   if (globalError === "API_SAFE_TOKEN_MISSING" || globalError === "MASTER_KEY_MISSING") return <ConfigErrorScreen type={globalError} />;
   if (!isLibLoaded) return <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 gap-4"><Loader2 className="w-8 h-8 animate-spin text-red-600" /><p className="text-slate-500 text-sm">正在连接 Bmob 云服务...</p></div>;
 
   return (
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] font-sans flex flex-col overflow-hidden">
-      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={setActiveTab} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={bmobRef.current} />
+      <Header isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} currentUser={currentUser} setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} searchQuery={searchQuery} setSearchQuery={setSearchQuery} Bmob={bmobRef.current} />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar relative">
-          <div className="max-w-[1600px] mx-auto">
-            {activeTab === 'home' && <HomeView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError} projectsUpdated={projectsUpdated} setProjectsUpdated={setProjectsUpdated}/>}
-            {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} />}
-            {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
-            {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} />}
-          </div>
+        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} />
+        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
+          
+          {selectedProject ? (
+             <ProjectDetailView project={selectedProject} onBack={() => setSelectedProject(null)} />
+          ) : (
+             <div className="p-4 sm:p-6 max-w-[1600px] mx-auto">
+                {activeTab === 'home' && <HomeView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError} projectsUpdated={projectsUpdated} setProjectsUpdated={setProjectsUpdated} onViewDetail={setSelectedProject} onEdit={startEditProject} />}
+                {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} />}
+                {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
+                {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} editingProject={editingProject} onCancelEdit={() => setEditingProject(null)} />}
+             </div>
+          )}
+
           {currentUser && <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />}
         </main>
       </div>
@@ -427,7 +652,7 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
   const isCheckedIn = currentUser && currentUser.lastCheckInDate === today;
 
   return (
-    <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 bg-white h-[calc(100vh-56px)] flex flex-col">
+    <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 bg-white h-[calc(100vh-56px)] flex flex-col border-r border-[#f0f0f0]">
       <div className="border-b border-[#e5e5e5] pb-3 mb-3">
         <MenuItem id="home" icon={Home} label="首页 (项目)" />
         <MenuItem id="community" icon={Compass} label="日常动态" />
@@ -477,7 +702,7 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
 }
 
 // --- 首页 (带搜索过滤) ---
-function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpdated, setProjectsUpdated }) {
+function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpdated, setProjectsUpdated, onViewDetail, onEdit }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
@@ -488,13 +713,11 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
     query.order("-createdAt");
     try {
       const res = await query.find();
-      console.log("Projects loaded in Home:", res);
       if(Array.isArray(res)) setProjects(res);
       if (setProjectsUpdated) {
         setProjectsUpdated(false);
       }
     } catch(e) { 
-      console.error(e); 
       if(getBmobErrorMsg(e) === "API_SAFE_TOKEN_MISSING") setGlobalError("API_SAFE_TOKEN_MISSING");
     }
     setLoading(false);
@@ -544,7 +767,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8 animate-fadeIn">
           {filteredProjects.map(p => (
-            <ProjectCard key={p.objectId} p={p} isAdmin={isAdmin} handleDelete={handleDelete} />
+            <ProjectCard key={p.objectId} p={p} isAdmin={isAdmin} handleDelete={handleDelete} handleEdit={onEdit} onViewDetail={onViewDetail} />
           ))}
         </div>
       )}
@@ -682,7 +905,6 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
       setReplyTarget(null); 
       setLoading(false); 
       fetchMessages();
-      // 增加经验
       if (onInteraction) onInteraction();
       alert("评论发布成功！经验+1");
     }).catch(err => { alert("发布失败: " + getBmobErrorMsg(err)); setLoading(false); });
@@ -749,16 +971,37 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
   );
 }
 
-function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
+function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, editingProject, onCancelEdit }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  // Inputs
+  
   const [pTitle, setPTitle] = useState('');
   const [pDesc, setPDesc] = useState('');
+  const [pContent, setPContent] = useState(''); 
   const [pLink, setPLink] = useState('');
   const [pImg, setPImg] = useState('');
   const [bContent, setBContent] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isPreview, setIsPreview] = useState(false); // New state for preview mode
+  
+  // 移除 useMarkdown 调用，使用 parseMarkdownSafe
+  // const { parse } = useMarkdown(); 
+
+  useEffect(() => {
+    if (editingProject) {
+      setPTitle(editingProject.title || '');
+      setPDesc(editingProject.description || '');
+      setPContent(editingProject.content || '');
+      setPLink(editingProject.git_link || '');
+      setPImg(editingProject.image_url || editingProject.imageUrl || '');
+    }
+  }, [editingProject]);
+
+  const clearForm = () => {
+    setPTitle(''); setPDesc(''); setPContent(''); setPImg(''); setPLink('');
+    setIsPreview(false);
+    if (onCancelEdit) onCancelEdit();
+  };
 
   const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); } else { alert("Bmob 未初始化"); } };
   const handleRegister = () => { if (Bmob) { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); } };
@@ -777,30 +1020,37 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
       }
       
       const query = Bmob.Query("projects");
+      
+      if (editingProject) {
+        query.set('id', editingProject.objectId); 
+      }
+
       query.set("title", pTitle);
       query.set("description", pDesc);
+      query.set("content", pContent);
       query.set("git_link", String(pLink || "")); 
       query.set("image_url", imageUrl || "");
       
-      try {
-        const acl = Bmob.ACL();
-        acl.setPublicReadAccess(true);
-        acl.setPublicWriteAccess(true);
-        query.set("ACL", acl);
-      } catch(e) { console.log("ACL set skipped"); }
+      if (!editingProject) {
+        try {
+          const acl = Bmob.ACL();
+          acl.setPublicReadAccess(true);
+          acl.setPublicWriteAccess(true);
+          query.set("ACL", acl);
+        } catch(e) { console.log("ACL set skipped"); }
+      }
       
       const savedProject = await query.save();
-      console.log("Saved project:", savedProject);
+      console.log("Saved/Updated project:", savedProject);
       
       if (setProjectsUpdated) setProjectsUpdated(true);
       
-      alert(`✅ 发布成功!`); 
-      
-      // Reset form
-      setPTitle(''); setPDesc(''); setPImg(''); setPLink('');
+      alert(editingProject ? `✅ 项目更新成功!` : `✅ 发布成功!`); 
+      clearForm();
+
     } catch (err) {
       console.error("Save error:", err);
-      alert("发布失败: " + (err.error || err.message || JSON.stringify(err)));
+      alert((editingProject ? "更新失败: " : "发布失败: ") + (err.error || err.message || JSON.stringify(err)));
     } finally {
       setIsUploading(false);
     }
@@ -848,11 +1098,38 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
       <div className="flex justify-between items-center mb-8 border-b border-[#e5e5e5] pb-4"><h2 className="text-2xl font-bold flex items-center gap-2"><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className="text-sm text-[#606060] hidden sm:inline">当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className="flex items-center gap-2 text-[#606060] hover:text-[#0f0f0f] transition-colors font-medium text-sm border border-[#e5e5e5] px-3 py-1.5 rounded-full hover:bg-[#f2f2f2]"><LogOut size={16}/> 退出</button></div></div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-        <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-[#f2f2f2]"><div className="p-2 bg-blue-50 rounded-full"><Upload size={20} className="text-[#065fd4]"/></div><h3 className="font-bold text-lg text-[#0f0f0f]">发布项目</h3></div>
+        <div className={`bg-white p-6 rounded-xl border shadow-sm hover:shadow-md transition-shadow flex flex-col h-full ${editingProject ? 'border-blue-500 ring-1 ring-blue-500' : 'border-[#e5e5e5]'}`}>
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#f2f2f2]">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 rounded-full"><Upload size={20} className="text-[#065fd4]"/></div>
+              <h3 className="font-bold text-lg text-[#0f0f0f]">{editingProject ? '编辑项目' : '发布项目'}</h3>
+            </div>
+            {editingProject && (
+              <button onClick={clearForm} className="text-xs text-red-500 hover:text-red-700 font-medium bg-red-50 px-2 py-1 rounded">
+                取消编辑
+              </button>
+            )}
+          </div>
           <form onSubmit={handleAddProject} className="flex-1 flex flex-col gap-4">
             <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目标题</label><input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="输入项目标题..." className="studio-input w-full"/></div>
-            <div className="flex-1"><label className="block text-xs font-medium text-[#606060] mb-1.5">项目介绍</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="描述一下这个项目的功能和亮点..." className="studio-input w-full h-full resize-none min-h-[150px]"/></div>
+            
+            <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目简介 (显示在卡片上)</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="简短的一句话描述..." className="studio-input w-full h-20 resize-none"/></div>
+
+            <div className="flex-1 flex flex-col">
+              <label className="block text-xs font-medium text-[#606060] mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1"><BookOpen size={12}/> 项目详情 (Markdown 支持表格/标题/代码块)</span>
+                <button type="button" onClick={() => setIsPreview(!isPreview)} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs bg-blue-50 px-2 py-0.5 rounded transition-colors">
+                   {isPreview ? <><PenTool size={10} /> 编辑模式</> : <><EyeIcon size={10} /> 实时预览</>}
+                </button>
+              </label>
+              
+              {isPreview ? (
+                // 直接使用 parseMarkdownSafe
+                <div className="studio-input w-full h-full min-h-[150px] overflow-auto markdown-body bg-white border-2 border-blue-100 p-4" dangerouslySetInnerHTML={{ __html: parseMarkdownSafe(pContent) }} />
+              ) : (
+                <textarea value={pContent} onChange={e=>setPContent(e.target.value)} placeholder={`# 标题&#10;- 列表项&#10;&#10;| 表头1 | 表头2 |&#10;|---|---|&#10;| 内容 | 内容 |`} className="studio-input w-full h-full resize-none min-h-[150px] font-mono text-xs"/>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 gap-4">
                <div>
@@ -867,7 +1144,11 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated }) {
                <div><label className="block text-xs font-medium text-[#606060] mb-1.5">项目链接 (GitHub)</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub / Demo" className="studio-input w-full"/></div>
             </div>
 
-            <div className="mt-auto pt-4"><button disabled={isUploading} className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed">{isUploading ? '正在发布...' : '发布项目'}</button></div>
+            <div className="mt-auto pt-4">
+              <button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>
+                {isUploading ? '正在处理...' : (editingProject ? '更新项目' : '发布项目')}
+              </button>
+            </div>
           </form>
         </div>
         <div className="bg-white p-6 rounded-xl border border-[#e5e5e5] shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
@@ -914,16 +1195,3 @@ function ConfigErrorScreen({ type }) {
     </div>
   );
 }
-
-const style = document.createElement('style');
-style.innerHTML = `
-  .custom-scrollbar::-webkit-scrollbar { width: 8px; }
-  .custom-scrollbar::-webkit-scrollbar-track { bg: transparent; }
-  .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #ccc; border-radius: 4px; }
-  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #aaa; }
-  .no-scrollbar::-webkit-scrollbar { display: none; }
-  .studio-input { @apply bg-[#f9f9f9] border border-[#ccc] rounded p-3 text-[#0f0f0f] outline-none focus:border-[#065fd4] placeholder-gray-500 text-sm focus:bg-white transition-colors focus:ring-1 focus:ring-[#065fd4]; }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
-  .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
-`;
-document.head.appendChild(style);
