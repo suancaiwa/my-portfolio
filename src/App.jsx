@@ -291,7 +291,15 @@ export default function App() {
   const bmobRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // 核心修复：根据屏幕宽度初始化 Sidebar 状态，手机端默认关闭
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+        return window.innerWidth >= 768; // >= 768px (md) 默认为 true，手机端为 false
+    }
+    return true; 
+  });
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLibLoaded, setIsLibLoaded] = useState(false);
   const [globalError, setGlobalError] = useState(null);
@@ -309,6 +317,19 @@ export default function App() {
   });
 
   const toggleDarkMode = () => setDarkMode(prev => !prev);
+
+  // 监听窗口大小，自动调整 Sidebar 状态（可选优化体验）
+  useEffect(() => {
+    const handleResize = () => {
+        if (window.innerWidth >= 768) {
+            setIsSidebarOpen(true);
+        } else {
+            setIsSidebarOpen(false);
+        }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -453,7 +474,7 @@ export default function App() {
   const appBg = darkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f9f9f9] text-slate-900';
 
   return (
-    <div className={`h-full ${appBg} font-sans flex flex-col overflow-hidden transition-colors duration-300`}>
+    <div className={`h-full ${appBg} font-sans flex flex-col overflow-hidden transition-colors duration-300 relative`}>
       <Header 
         isSidebarOpen={isSidebarOpen} 
         setIsSidebarOpen={setIsSidebarOpen} 
@@ -465,10 +486,31 @@ export default function App() {
         darkMode={darkMode}
         toggleDarkMode={toggleDarkMode}
       />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} darkMode={darkMode} />
-        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-          
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* 核心修复：手机端 Sidebar 增加遮罩和绝对定位 */}
+        {isSidebarOpen && window.innerWidth < 768 && (
+            <div 
+                className="fixed inset-0 bg-black/50 z-40 backdrop-blur-sm transition-opacity" 
+                onClick={() => setIsSidebarOpen(false)}
+            ></div>
+        )}
+        
+        <Sidebar 
+            isOpen={isSidebarOpen} 
+            activeTab={activeTab} 
+            setActiveTab={(tab) => { 
+                setActiveTab(tab); 
+                setSelectedProject(null); 
+                setEditingProject(null); 
+                if (window.innerWidth < 768) setIsSidebarOpen(false); // 手机端点击菜单后自动收起
+            }} 
+            currentUser={currentUser} 
+            totalViews={totalViews} 
+            onCheckIn={handleCheckIn} 
+            darkMode={darkMode} 
+        />
+        
+        <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full">
           {selectedProject ? (
              <ProjectDetailView project={selectedProject} onBack={() => setSelectedProject(null)} darkMode={darkMode} />
           ) : (
@@ -594,9 +636,11 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
 }
 
 function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn, darkMode }) {
-  if (!isOpen) return null;
+  // 核心修复：根据 isOpen 状态决定是否渲染
+  // 在手机端 (absolute) 且关闭时，使用 -translate-x-full 隐藏，而不是 null
+  // 在电脑端 (static)，如果关闭，可能需要收缩，但这里保持 md:block 逻辑
   
-  const sidebarClass = darkMode ? "bg-[#0f172a]/80 border-slate-800" : "bg-white border-[#f0f0f0]";
+  const sidebarClass = darkMode ? "bg-[#0f172a]/95 border-slate-800" : "bg-white/95 border-[#f0f0f0]";
   const menuActive = darkMode ? "bg-slate-800 text-slate-100 font-medium" : "bg-[#f2f2f2] text-[#0f0f0f] font-medium";
   const menuInactive = darkMode ? "hover:bg-slate-800 text-slate-400" : "hover:bg-[#f2f2f2] text-[#0f0f0f]";
   const iconActive = darkMode ? "text-slate-100" : "text-[#0f0f0f]";
@@ -611,8 +655,25 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
   const isCheckedIn = currentUser && currentUser.lastCheckInDate === (new Date().toLocaleDateString());
 
+  // 核心修复：CSS 类控制显示隐藏
+  // Mobile: absolute position, z-50, transition transform
+  // Desktop: relative (static), no transform
+  const visibilityClass = isOpen 
+    ? "translate-x-0" 
+    : "-translate-x-full md:translate-x-0 md:hidden"; // Desktop hidden if closed? Or maintain? 
+    // Usually desktop toggles width or visibility. Let's make desktop toggle visibility:
+    // If desktop closed: hidden. If open: block.
+    // Re-eval: The App logic sets isOpen based on width.
+    
+  // 最终逻辑：
+  // Mobile: absolute, z-50, transform based on isOpen
+  // Desktop: relative, transform-none, block/hidden based on isOpen
+  
+  const layoutClass = "fixed inset-y-0 left-0 z-50 md:static md:z-auto h-full"; // 手机端fixed, 电脑端static
+  const transformClass = isOpen ? "translate-x-0" : "-translate-x-full md:hidden";
+
   return (
-    <aside className={`w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 backdrop-blur-md h-[calc(100vh-56px)] flex flex-col border-r transition-colors duration-300 ${sidebarClass}`}>
+    <aside className={`w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 custom-scrollbar pt-3 backdrop-blur-md flex flex-col border-r transition-transform duration-300 ease-in-out ${layoutClass} ${transformClass} ${sidebarClass} mt-14 md:mt-0`}>
       <div className={`border-b pb-3 mb-3 ${darkMode ? 'border-slate-800' : 'border-[#e5e5e5]'}`}>
         <MenuItem id="home" icon={Home} label="首页 (项目)" />
         <MenuItem id="community" icon={Compass} label="日常动态" />
@@ -676,7 +737,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
   const handleDelete = async (e, id) => {
     e.stopPropagation();
     if (!confirm("确定要删除这个项目吗？")) return;
-    try { const q = Bmob.Query("projects"); await q.destroy(id); fetchProjects(); } catch(err) { fetchProjects(); }
+    try { await Bmob.Query("projects").destroy(id); fetchProjects(); } catch(err) { fetchProjects(); }
   };
 
   const filteredProjects = projects.filter(p => {
@@ -990,7 +1051,7 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
                <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>封面链接</label><input value={pImg} onChange={e=>setPImg(e.target.value)} className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
                <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>GitHub</label><input value={pLink} onChange={e=>setPLink(e.target.value)} className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
             </div>
-            <div className="mt-auto pt-4"><button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-slate-400 ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>{isUploading ? '处理中...' : (editingProject ? '更新' : '发布')}</button></div>
+            <div className="mt-auto pt-4"><button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>{isUploading ? '处理中...' : (editingProject ? '更新' : '发布')}</button></div>
           </form>
         </div>
         <div className={`p-6 rounded-xl border shadow-sm flex flex-col h-full ${cardClass}`}>
