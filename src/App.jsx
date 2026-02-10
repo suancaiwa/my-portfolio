@@ -296,23 +296,29 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
   
-  // 暗黑模式状态
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    // 初始化 Dark Mode
-    const savedTheme = localStorage.getItem('theme');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-        setDarkMode(true);
+  // 暗黑模式状态 - 核心修复：更稳健的初始化
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('theme');
+        const pref = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        return saved === 'dark' || (!saved && pref);
     }
-  }, []);
+    return false;
+  });
 
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    localStorage.setItem('theme', newMode ? 'dark' : 'light');
-  };
+  // 核心修复：直接同步 DOM class，解决部署后不生效问题
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (darkMode) {
+        root.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+    } else {
+        root.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
 
   useEffect(() => {
     // 注入全局样式 - 优化了 Dark Mode 颜色为 Slate 系
