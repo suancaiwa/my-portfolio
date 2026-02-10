@@ -24,6 +24,9 @@ const ADMIN_USERNAME = "cailixian2@gmail.com";
 const MAX_LEVEL = 15;
 const MAX_XP = 10000;
 
+// --- 通用样式常量 ---
+const INPUT_STYLES = "bg-[#f9f9f9] dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded p-3 text-slate-900 dark:text-slate-100 outline-none focus:border-[#065fd4] placeholder-slate-500 text-sm focus:bg-white dark:focus:bg-slate-900 transition-colors focus:ring-1 focus:ring-[#065fd4]";
+
 // --- 错误处理工具 ---
 const getBmobErrorMsg = (err) => {
   const errorStr = JSON.stringify(err);
@@ -33,7 +36,7 @@ const getBmobErrorMsg = (err) => {
   return err.error || errorStr;
 };
 
-// --- 内置轻量级 Markdown 解析器 (零依赖) ---
+// --- 内置轻量级 Markdown 解析器 ---
 const parseMarkdownSafe = (markdownText) => {
   if (!markdownText) return '';
   let html = markdownText;
@@ -109,26 +112,17 @@ const HeroBanner = ({ user, onViewDetail, onScroll, onRegister }) => (
       </div>
     </div>
     
-    {/* Decorative Elements */}
     <div className="absolute -top-20 -right-20 w-80 h-80 bg-pink-500/30 rounded-full blur-3xl group-hover:scale-110 transition-transform duration-1000"></div>
     <div className="absolute -bottom-20 -left-20 w-60 h-60 bg-blue-500/30 rounded-full blur-3xl animate-pulse"></div>
   </div>
 );
 
 // --- 子组件：互动小宠物 ---
-const InteractivePet = ({ currentUser, xp, level }) => {
+const InteractivePet = ({ xp, level, darkMode }) => {
   const [message, setMessage] = useState("");
   const [isBouncing, setIsBouncing] = useState(false);
   
-  const quotes = [
-    "暗黑模式好酷！",
-    "记得多喝水~",
-    "你的代码真棒！",
-    "排行榜更新啦！",
-    "冲刺 15 级大神！",
-    "今天学到了什么？",
-    "休息一下眼睛吧"
-  ];
+  const quotes = ["暗黑模式好酷！", "记得多喝水~", "你的代码真棒！", "排行榜更新啦！", "冲刺 15 级大神！", "今天学到了什么？"];
 
   const handlePetClick = () => {
     setIsBouncing(true);
@@ -143,16 +137,16 @@ const InteractivePet = ({ currentUser, xp, level }) => {
   return (
     <div className="fixed bottom-20 right-6 z-40 flex flex-col items-end pointer-events-none">
       {message && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-xl rounded-br-none shadow-lg mb-2 animate-fadeIn max-w-[200px] text-xs text-slate-800 dark:text-slate-200">
+        <div className={`${darkMode ? 'bg-slate-800 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'} border px-4 py-2 rounded-xl rounded-br-none shadow-lg mb-2 animate-fadeIn max-w-[200px] text-xs`}>
           {message}
         </div>
       )}
       <div 
         onClick={handlePetClick}
-        className={`pointer-events-auto cursor-pointer bg-white dark:bg-slate-800 p-3 rounded-full shadow-xl border-2 border-[#065fd4] dark:border-blue-500 hover:bg-blue-50 dark:hover:bg-slate-700 transition-transform ${isBouncing ? 'animate-bounce' : ''} relative group`}
+        className={`pointer-events-auto cursor-pointer p-3 rounded-full shadow-xl border-2 border-[#065fd4] hover:scale-105 transition-transform ${isBouncing ? 'animate-bounce' : ''} relative group ${darkMode ? 'bg-slate-800 border-blue-500' : 'bg-white'}`}
       >
-        <Cat size={32} className="text-[#065fd4] dark:text-blue-400" />
-        <div className="absolute -top-1 -left-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 rounded-full border border-white dark:border-slate-800 shadow-sm">
+        <Cat size={32} className={`${darkMode ? 'text-blue-400' : 'text-[#065fd4]'}`} />
+        <div className={`absolute -top-1 -left-1 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-1.5 rounded-full border shadow-sm ${darkMode ? 'border-slate-800' : 'border-white'}`}>
           Lv.{level || 1}
         </div>
         <div className="absolute right-full mr-3 top-1/2 -translate-y-1/2 bg-black/80 text-white text-xs px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap backdrop-blur-sm">
@@ -170,30 +164,33 @@ const InteractivePet = ({ currentUser, xp, level }) => {
 };
 
 // --- 子组件：项目卡片 ---
-const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail }) => {
+const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail, darkMode }) => {
   const [imgError, setImgError] = useState(false);
   const url = p.image_url || p.imageUrl; 
   const isValidUrl = url && url.startsWith('http') && !imgError;
   const formatUrl = (link) => (!link ? '' : (link.startsWith('http') ? link : `https://${link}`));
 
+  const cardBg = darkMode ? "bg-[#0f172a] border-[#1e293b]" : "bg-white border-[#e5e5e5]";
+  const textTitle = darkMode ? "text-slate-100 group-hover:text-blue-400" : "text-[#0f0f0f] group-hover:text-[#065fd4]";
+  const textDesc = darkMode ? "text-slate-400" : "text-[#606060]";
+  const btnBg = darkMode ? "bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700" : "bg-[#f2f2f2] hover:bg-[#e5e5e5] text-[#0f0f0f] border-transparent";
+
   return (
     <div className="group cursor-pointer flex flex-col gap-3 relative transform transition-all duration-300 hover:-translate-y-2" onClick={() => onViewDetail(p)}>
-      <div className="relative aspect-video rounded-xl overflow-hidden bg-slate-200 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm group-hover:shadow-xl transition-all">
+      <div className={`relative aspect-video rounded-xl overflow-hidden border shadow-sm group-hover:shadow-xl transition-all ${cardBg}`}>
         {isValidUrl ? (
           <img src={url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={() => setImgError(true)} alt={p.title}/>
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-400 dark:text-slate-600 bg-slate-100 dark:bg-slate-800 flex-col gap-2">
+          <div className={`w-full h-full flex items-center justify-center flex-col gap-2 ${darkMode ? 'bg-slate-800 text-slate-600' : 'bg-gray-100 text-gray-400'}`}>
             <Code size={40} />
             <span className="text-xs">暂无图片</span>
           </div>
         )}
-        {/* Hover Actions */}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
             <button className="bg-white/90 text-black px-4 py-2 rounded-full font-bold text-xs transform scale-90 group-hover:scale-100 transition-all shadow-lg hover:bg-white flex items-center gap-2">
                 <Eye size={14}/> 查看详情
             </button>
         </div>
-
         {isAdmin && (
           <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
             <button onClick={(e) => { e.stopPropagation(); handleEdit(p); }} className="bg-blue-600/90 text-white p-2 rounded-full shadow-md hover:bg-blue-700 transition-colors backdrop-blur-sm"><Edit3 size={14} /></button>
@@ -202,13 +199,13 @@ const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail }) => 
         )}
       </div>
       <div className="flex gap-3 pr-2 items-start">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0 shadow-md ring-2 ring-white dark:ring-slate-800"></div>
+        <div className={`w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-cyan-400 shrink-0 shadow-md ring-2 ${darkMode ? 'ring-slate-800' : 'ring-white'}`}></div>
         <div className="flex flex-col flex-1">
-          <h3 className="text-slate-900 dark:text-slate-100 font-bold text-base line-clamp-2 leading-tight mb-1 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">{p.title || '无标题'}</h3>
-          <div className="text-slate-500 dark:text-slate-400 text-xs flex flex-col mb-1"><span className="opacity-80">发布于 {p.createdAt ? p.createdAt.split(' ')[0] : '未知日期'}</span></div>
+          <h3 className={`font-bold text-base line-clamp-2 leading-tight mb-1 transition-colors ${textTitle}`}>{p.title || '无标题'}</h3>
+          <div className={`text-xs flex flex-col mb-1 ${textDesc}`}><span className="opacity-80">发布于 {p.createdAt ? p.createdAt.split(' ')[0] : '未知日期'}</span></div>
           <div className="flex gap-2 mt-2">
             {p.git_link ? (
-              <a href={formatUrl(p.git_link)} target="_blank" rel="noreferrer" className="text-xs bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 px-2 py-1 rounded text-slate-800 dark:text-slate-200 flex gap-1 items-center transition-colors border border-slate-200 dark:border-slate-600" onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>
+              <a href={formatUrl(p.git_link)} target="_blank" rel="noreferrer" className={`text-xs px-2 py-1 rounded flex gap-1 items-center transition-colors border ${btnBg}`} onClick={e=>e.stopPropagation()}><Github size={12}/> 源码</a>
             ) : null}
           </div>
         </div>
@@ -218,22 +215,29 @@ const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail }) => 
 };
 
 // --- 子组件：项目详情页 ---
-const ProjectDetailView = ({ project, onBack }) => {
+const ProjectDetailView = ({ project, onBack, darkMode }) => {
   const [imgError, setImgError] = useState(false);
   const url = project.image_url || project.imageUrl;
   const htmlContent = parseMarkdownSafe(project.content || '');
   const formatUrl = (link) => (!link ? '' : (link.startsWith('http') ? link : `https://${link}`));
 
+  const bgMain = darkMode ? "bg-[#020617]" : "bg-white";
+  const textMain = darkMode ? "text-slate-200" : "text-[#0f0f0f]";
+  const headerBg = darkMode ? "bg-[#0f172a]/80 border-slate-800" : "bg-white/80 border-[#e5e5e5]";
+  const iconBtn = darkMode ? "hover:bg-slate-800 text-slate-100" : "hover:bg-[#f2f2f2] text-[#0f0f0f]";
+  const cardBg = darkMode ? "bg-[#0f172a] border-slate-800" : "bg-gray-100 border-[#e5e5e5]";
+  const quoteBg = darkMode ? "bg-[#0f172a]/50 text-slate-300" : "bg-[#f9f9f9] text-[#0f0f0f]";
+
   return (
-    <div className="bg-white dark:bg-slate-950 min-h-full animate-fadeIn pb-10">
-      <div className="sticky top-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center gap-3 z-30 transition-colors">
-        <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-slate-100 transition-colors">
+    <div className={`${bgMain} min-h-full animate-fadeIn pb-10 transition-colors`}>
+      <div className={`sticky top-0 backdrop-blur-md border-b px-4 py-3 flex items-center gap-3 z-30 transition-colors ${headerBg}`}>
+        <button onClick={onBack} className={`p-2 rounded-full transition-colors ${iconBtn}`}>
           <ChevronLeft size={24} />
         </button>
-        <span className="font-bold text-lg truncate text-slate-900 dark:text-slate-100">项目详情</span>
+        <span className={`font-bold text-lg truncate ${textMain}`}>项目详情</span>
         <div className="ml-auto flex gap-2">
             {project.git_link && (
-                <a href={formatUrl(project.git_link)} target="_blank" rel="noreferrer" className="bg-slate-900 dark:bg-white text-white dark:text-black px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <a href={formatUrl(project.git_link)} target="_blank" rel="noreferrer" className={`${darkMode ? 'bg-white text-black' : 'bg-[#0f0f0f] text-white'} px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 hover:opacity-80 transition-opacity`}>
                    <Github size={14}/> 源码
                 </a>
             )}
@@ -242,18 +246,18 @@ const ProjectDetailView = ({ project, onBack }) => {
 
       <div className="max-w-[800px] mx-auto px-6 py-8">
          <div className="mb-8">
-             <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mb-4">
-                 <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-0.5 rounded font-medium border border-blue-100 dark:border-blue-800">项目文档</span>
+             <div className={`flex items-center gap-2 text-sm mb-4 ${darkMode ? 'text-slate-400' : 'text-[#606060]'}`}>
+                 <span className={`px-2 py-0.5 rounded font-medium border ${darkMode ? 'bg-blue-900/30 text-blue-400 border-blue-800' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>项目文档</span>
                  <span>•</span>
                  <span>{project.createdAt}</span>
              </div>
-             <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 dark:text-white leading-tight mb-6">{project.title}</h1>
+             <h1 className={`text-3xl sm:text-4xl font-extrabold leading-tight mb-6 ${textMain}`}>{project.title}</h1>
              
-             <div className="w-full aspect-video bg-slate-100 dark:bg-slate-800 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm mb-8">
+             <div className={`w-full aspect-video rounded-xl overflow-hidden border shadow-sm mb-8 ${cardBg}`}>
                 {url && !imgError ? (
                     <img src={url} className="w-full h-full object-cover" onError={() => setImgError(true)} alt={project.title} />
                 ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 gap-2">
+                    <div className={`w-full h-full flex flex-col items-center justify-center gap-2 ${darkMode ? 'text-slate-600' : 'text-gray-400'}`}>
                         <ImageIcon size={48} />
                         <span className="text-sm">暂无配图</span>
                     </div>
@@ -261,17 +265,17 @@ const ProjectDetailView = ({ project, onBack }) => {
              </div>
 
              {project.description && (
-                 <div className="bg-slate-50 dark:bg-slate-800/50 border-l-4 border-[#065fd4] p-4 rounded-r-lg mb-8 text-slate-700 dark:text-slate-300 italic text-base leading-relaxed">
+                 <div className={`border-l-4 border-[#065fd4] p-4 rounded-r-lg mb-8 italic text-base leading-relaxed ${quoteBg}`}>
                      {project.description}
                  </div>
              )}
          </div>
 
-         <div className="markdown-body dark:markdown-dark text-slate-900 dark:text-slate-200">
+         <div className={`markdown-body ${darkMode ? 'dark-mode-content' : ''} ${textMain}`}>
              {project.content ? (
                  <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
              ) : (
-                 <div className="text-center py-10 text-slate-400 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                 <div className={`text-center py-10 rounded-xl border border-dashed ${darkMode ? 'bg-slate-900/50 border-slate-700 text-slate-500' : 'bg-gray-50 border-gray-200 text-gray-400'}`}>
                      <FileCheck size={32} className="mx-auto mb-2 opacity-50"/>
                      <p>该项目暂无详细文档内容。</p>
                  </div>
@@ -296,32 +300,30 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
   
-  // 暗黑模式状态 - 核心修复：更稳健的初始化
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('theme');
-        const pref = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        return saved === 'dark' || (!saved && pref);
+        return saved === 'dark';
     }
     return false;
   });
 
-  // 核心修复：直接同步 DOM class，解决部署后不生效问题
+  const toggleDarkMode = () => setDarkMode(prev => !prev);
+
   useEffect(() => {
     const root = window.document.documentElement;
     if (darkMode) {
         root.classList.add('dark');
         localStorage.setItem('theme', 'dark');
+        document.body.style.backgroundColor = '#020617';
+        document.body.style.color = '#f1f5f9';
     } else {
         root.classList.remove('dark');
         localStorage.setItem('theme', 'light');
+        document.body.style.backgroundColor = '#f9f9f9';
+        document.body.style.color = '#0f0f0f';
     }
-  }, [darkMode]);
 
-  const toggleDarkMode = () => setDarkMode(prev => !prev);
-
-  useEffect(() => {
-    // 注入全局样式 - 优化了 Dark Mode 颜色为 Slate 系
     const style = document.createElement('style');
     style.innerHTML = `
       .custom-scrollbar::-webkit-scrollbar { width: 8px; }
@@ -329,22 +331,11 @@ export default function App() {
       .custom-scrollbar::-webkit-scrollbar-thumb { background-color: ${darkMode ? '#475569' : '#ccc'}; border-radius: 4px; }
       .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: ${darkMode ? '#64748b' : '#aaa'}; }
       .no-scrollbar::-webkit-scrollbar { display: none; }
-      
-      .studio-input { @apply bg-[#f9f9f9] dark:bg-slate-800 border border-[#ccc] dark:border-slate-700 rounded p-3 text-slate-900 dark:text-slate-100 outline-none focus:border-[#065fd4] placeholder-slate-500 text-sm focus:bg-white dark:focus:bg-slate-900 transition-colors focus:ring-1 focus:ring-[#065fd4]; }
-      
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
       .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
+      @keyframes gradient-xy { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+      .animate-gradient-xy { background-size: 200% 200%; animation: gradient-xy 6s ease infinite; }
       
-      @keyframes gradient-xy {
-          0%, 100% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-      }
-      .animate-gradient-xy {
-          background-size: 200% 200%;
-          animation: gradient-xy 6s ease infinite;
-      }
-
-      /* Markdown Light */
       .markdown-body { font-size: 16px; line-height: 1.7; word-wrap: break-word; }
       .markdown-body h1, .markdown-body h2 { border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; margin-top: 24px; margin-bottom: 16px; font-weight: 700; }
       .markdown-body p { margin-bottom: 16px; }
@@ -357,19 +348,20 @@ export default function App() {
       .markdown-body th, .markdown-body td { border: 1px solid #dfe2e5; padding: 6px 13px; }
       .markdown-body tr:nth-child(2n) { background-color: #f6f8fa; }
 
-      /* Markdown Dark Overrides - Slate Theme */
-      .dark .markdown-body { color: #cbd5e1; }
-      .dark .markdown-body h1, .dark .markdown-body h2 { border-bottom-color: #1e293b; }
-      .dark .markdown-body blockquote { border-left-color: #334155; color: #94a3b8; background-color: #0f172a; }
-      .dark .markdown-body code { background-color: rgba(100,116,139,0.2); color: #e2e8f0; }
-      .dark .markdown-body pre { background-color: #0f172a; border: 1px solid #1e293b; }
-      .dark .markdown-body th, .dark .markdown-body td { border-color: #334155; }
-      .dark .markdown-body tr:nth-child(2n) { background-color: #0f172a; }
-      .dark .markdown-body table tr { background-color: #1e293b; }
+      .dark-mode-content { color: #cbd5e1; }
+      .dark-mode-content h1, .dark-mode-content h2 { border-bottom-color: #1e293b; }
+      .dark-mode-content blockquote { border-left-color: #334155; color: #94a3b8; background-color: #0f172a; }
+      .dark-mode-content code { background-color: rgba(100,116,139,0.2); color: #e2e8f0; }
+      .dark-mode-content pre { background-color: #0f172a; border: 1px solid #1e293b; }
+      .dark-mode-content th, .dark-mode-content td { border-color: #334155; }
+      .dark-mode-content tr:nth-child(2n) { background-color: #0f172a; }
+      .dark-mode-content table tr { background-color: #1e293b; }
     `;
     document.head.appendChild(style);
+    return () => { document.head.removeChild(style); };
+  }, [darkMode]);
 
-    // Bmob Init
+  useEffect(() => {
     if (window.Bmob) { initBmob(); return; }
     const script = document.createElement('script');
     script.src = "https://unpkg.com/hydrogen-js-sdk/dist/Bmob-2.5.1.min.js";
@@ -396,8 +388,7 @@ export default function App() {
       }
       setIsLibLoaded(true);
     }
-    return () => { document.head.removeChild(style); };
-  }, [darkMode]);
+  }, []);
 
   const updateSiteViews = async (bmobInstance) => {
     try {
@@ -422,33 +413,26 @@ export default function App() {
 
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
     if (!bmobRef.current || !currentUser) return;
-    const currentXP = currentUser.xp || 0;
-    const currentLevel = currentUser.level || 1;
+    const currentXP = Number(currentUser.xp) || 0;
+    const currentLevel = Number(currentUser.level) || 1;
     let newXP = currentXP + amount;
     let newLevel = currentLevel;
     if (currentLevel < MAX_LEVEL) {
         newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
         if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
     } else { newXP = currentXP; }
-
     const updateData = { xp: newXP, level: newLevel, ...extraUpdates };
-
     try {
         const url = `https://api.bmobcloud.com/1/classes/_User/${currentUser.objectId}`;
         const response = await fetch(url, {
             method: 'PUT',
-            headers: {
-                'X-Bmob-Application-Id': BMOB_APP_ID,
-                'X-Bmob-Master-Key': BMOB_MASTER_KEY,
-                'Content-Type': 'application/json'
-            },
+            headers: { 'X-Bmob-Application-Id': BMOB_APP_ID, 'X-Bmob-Master-Key': BMOB_MASTER_KEY, 'Content-Type': 'application/json' },
             body: JSON.stringify(updateData)
         });
         if (!response.ok) throw new Error(await response.text());
         setCurrentUser({ ...currentUser, ...updateData });
         if (newLevel > currentLevel) alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
     } catch (e) {
-        console.error("XP update failed", e);
         if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") setGlobalError("MASTER_KEY_MISSING");
     }
   };
@@ -466,39 +450,39 @@ export default function App() {
   if (globalError === "API_SAFE_TOKEN_MISSING" || globalError === "MASTER_KEY_MISSING") return <ConfigErrorScreen type={globalError} />;
   if (!isLibLoaded) return <div className="min-h-screen bg-white flex flex-col items-center justify-center text-slate-800 gap-4"><Loader2 className="w-8 h-8 animate-spin text-red-600" /><p className="text-slate-500 text-sm">正在连接 Bmob 云服务...</p></div>;
 
-  return (
-    <div className={`${darkMode ? 'dark' : ''} h-full`}>
-      <div className="min-h-screen bg-[#f9f9f9] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col overflow-hidden transition-colors duration-300">
-        <Header 
-          isSidebarOpen={isSidebarOpen} 
-          setIsSidebarOpen={setIsSidebarOpen} 
-          currentUser={currentUser} 
-          setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} 
-          searchQuery={searchQuery} 
-          setSearchQuery={setSearchQuery} 
-          Bmob={bmobRef.current} 
-          darkMode={darkMode}
-          toggleDarkMode={toggleDarkMode}
-        />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} />
-          <main className="flex-1 overflow-y-auto custom-scrollbar relative">
-            
-            {selectedProject ? (
-               <ProjectDetailView project={selectedProject} onBack={() => setSelectedProject(null)} />
-            ) : (
-               <div className="p-4 sm:p-6 max-w-[1600px] mx-auto min-h-full">
-                  {activeTab === 'home' && <HomeView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError} projectsUpdated={projectsUpdated} setProjectsUpdated={setProjectsUpdated} onViewDetail={setSelectedProject} onEdit={startEditProject} onNavigate={setActiveTab} />}
-                  {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} />}
-                  {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} />}
-                  {activeTab === 'leaderboard' && <LeaderboardView Bmob={bmobRef.current} currentUser={currentUser} />}
-                  {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} editingProject={editingProject} onCancelEdit={() => setEditingProject(null)} />}
-               </div>
-            )}
+  const appBg = darkMode ? 'bg-[#020617] text-slate-100' : 'bg-[#f9f9f9] text-slate-900';
 
-            {currentUser && <InteractivePet currentUser={currentUser} xp={currentUser.xp || 0} level={currentUser.level || 1} />}
-          </main>
-        </div>
+  return (
+    <div className={`h-full ${appBg} font-sans flex flex-col overflow-hidden transition-colors duration-300`}>
+      <Header 
+        isSidebarOpen={isSidebarOpen} 
+        setIsSidebarOpen={setIsSidebarOpen} 
+        currentUser={currentUser} 
+        setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} 
+        searchQuery={searchQuery} 
+        setSearchQuery={setSearchQuery} 
+        Bmob={bmobRef.current} 
+        darkMode={darkMode}
+        toggleDarkMode={toggleDarkMode}
+      />
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar isOpen={isSidebarOpen} activeTab={activeTab} setActiveTab={(tab) => { setActiveTab(tab); setSelectedProject(null); setEditingProject(null); }} currentUser={currentUser} totalViews={totalViews} onCheckIn={handleCheckIn} darkMode={darkMode} />
+        <main className="flex-1 overflow-y-auto custom-scrollbar relative">
+          
+          {selectedProject ? (
+             <ProjectDetailView project={selectedProject} onBack={() => setSelectedProject(null)} darkMode={darkMode} />
+          ) : (
+             <div className="p-4 sm:p-6 max-w-[1600px] mx-auto min-h-full">
+                {activeTab === 'home' && <HomeView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} setGlobalError={setGlobalError} projectsUpdated={projectsUpdated} setProjectsUpdated={setProjectsUpdated} onViewDetail={setSelectedProject} onEdit={startEditProject} onNavigate={setActiveTab} darkMode={darkMode} />}
+                {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} darkMode={darkMode} />}
+                {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} darkMode={darkMode} />}
+                {activeTab === 'leaderboard' && <LeaderboardView Bmob={bmobRef.current} currentUser={currentUser} darkMode={darkMode} />}
+                {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} editingProject={editingProject} onCancelEdit={() => setEditingProject(null)} darkMode={darkMode} />}
+             </div>
+          )}
+
+          {currentUser && <InteractivePet xp={currentUser.xp || 0} level={currentUser.level || 1} darkMode={darkMode} />}
+        </main>
       </div>
     </div>
   );
@@ -520,16 +504,13 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
       query.limit(20); 
       try {
         const res = await query.find();
-        if (Array.isArray(res)) {
-          const newNotifs = res.filter(msg => {
+        if (Array.isArray(res)) setNotifications(res.filter(msg => {
             if (msg.createdAt <= lastReadTime) return false;
             if (currentUser && msg.name === currentUser.username) return false;
             if (isAdmin) return true; 
             else if (currentUser) return msg.replyTo === currentUser.username;
             return false;
-          });
-          setNotifications(newNotifs);
-        }
+        }));
       } catch (e) {}
     };
     checkNotifications();
@@ -539,55 +520,54 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
 
   const handleOpenNotif = () => {
     setShowNotifDropdown(!showNotifDropdown);
-    if (!showNotifDropdown && notifications.length > 0) {
-      const newestTime = notifications[0].createdAt;
-      localStorage.setItem('last_notif_time', newestTime);
-    }
+    if (!showNotifDropdown && notifications.length > 0) localStorage.setItem('last_notif_time', notifications[0].createdAt);
   };
 
+  const headerClass = darkMode ? "bg-[#0f172a]/80 border-slate-800" : "bg-white/80 border-[#e5e5e5]";
+  const iconClass = darkMode ? "text-slate-100 hover:bg-slate-800" : "text-[#0f0f0f] hover:bg-[#f2f2f2]";
+  const searchBg = darkMode ? "bg-[#1e293b] border-slate-700" : "bg-white border-[#ccc]";
+  const inputColor = darkMode ? "text-slate-100 placeholder-slate-500" : "text-[#0f0f0f] placeholder-gray-500";
+  const searchBtn = darkMode ? "bg-[#1e293b] border-slate-700 text-slate-300" : "bg-[#f8f8f8] border-[#ccc] text-[#0f0f0f]";
+
   return (
-    <header className="h-14 flex items-center justify-between px-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 transition-colors duration-300">
+    <header className={`h-14 flex items-center justify-between px-4 backdrop-blur-md sticky top-0 z-50 border-b transition-colors duration-300 ${headerClass}`}>
       <div className="flex items-center gap-4">
-        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-900 dark:text-slate-100 transition-colors"><Menu size={24} /></button>
+        <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className={`p-2 rounded-full transition-colors ${iconClass}`}><Menu size={24} /></button>
         <div className="flex items-center gap-1 cursor-pointer" onClick={() => setActiveTab('home')}>
           <div className="bg-red-600 rounded-lg p-1 flex items-center justify-center"><Laptop size={16} className="text-white" /></div>
-          <span className="text-xl font-bold tracking-tighter font-sans text-slate-900 dark:text-slate-100 relative top-[-1px]">NineIce</span>
+          <span className={`text-xl font-bold tracking-tighter font-sans relative top-[-1px] ${darkMode ? 'text-slate-100' : 'text-[#0f0f0f]'}`}>NineIce</span>
         </div>
       </div>
       <div className="hidden md:flex flex-1 max-w-[600px] mx-4">
         <div className="flex w-full group">
-          <div className="flex-1 flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-l-full px-4 py-1 ml-8 group-focus-within:border-blue-500 shadow-inner transition-colors">
-            <input type="text" placeholder="搜索项目与动态..." className="w-full bg-transparent outline-none text-slate-900 dark:text-slate-100 placeholder-slate-500 text-base" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
-            {searchQuery && (<button onClick={() => setSearchQuery('')} className="mr-2 text-slate-500 hover:text-slate-700"><X size={16} /></button>)}
+          <div className={`flex-1 flex items-center border rounded-l-full px-4 py-1 ml-8 shadow-inner transition-colors ${searchBg}`}>
+            <input type="text" placeholder="搜索项目与动态..." className={`w-full bg-transparent outline-none text-base ${inputColor}`} value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
+            {searchQuery && (<button onClick={() => setSearchQuery('')} className="mr-2 opacity-50 hover:opacity-100"><X size={16} /></button>)}
           </div>
-          <button className="bg-slate-100 dark:bg-slate-700 border border-l-0 border-slate-300 dark:border-slate-700 px-5 rounded-r-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"><Search size={20} className="text-slate-600 dark:text-slate-300" /></button>
+          <button className={`border border-l-0 px-5 rounded-r-full hover:brightness-95 transition-colors ${searchBtn}`}><Search size={20} /></button>
         </div>
       </div>
       <div className="flex items-center gap-2 sm:gap-4 relative">
-        <button onClick={toggleDarkMode} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="切换主题">
-            {darkMode ? <Sun size={24} /> : <Moon size={24} />}
-        </button>
-
+        <button onClick={toggleDarkMode} className={`p-2 rounded-full transition-colors ${iconClass}`} title="切换主题">{darkMode ? <Sun size={24} /> : <Moon size={24} />}</button>
         <div className="relative">
-          <button onClick={handleOpenNotif} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 relative transition-colors">
+          <button onClick={handleOpenNotif} className={`p-2 rounded-full relative transition-colors ${iconClass}`}>
             <Bell size={24} />
-            {notifications.length > 0 && (<span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white dark:border-slate-900"></span>)}
+            {notifications.length > 0 && (<span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white"></span>)}
           </button>
           {showNotifDropdown && (
-            <div className="absolute right-0 top-12 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden animate-fadeIn">
-              <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 font-bold text-sm text-slate-900 dark:text-slate-100">通知中心</div>
+            <div className={`absolute right-0 top-12 w-80 border rounded-xl shadow-xl z-50 overflow-hidden animate-fadeIn ${darkMode ? 'bg-[#0f172a] border-slate-700' : 'bg-white border-[#e5e5e5]'}`}>
+              <div className={`p-3 border-b font-bold text-sm ${darkMode ? 'bg-slate-800 border-slate-700 text-slate-100' : 'bg-gray-50 border-[#e5e5e5] text-[#0f0f0f]'}`}>通知中心</div>
               <div className="max-h-80 overflow-y-auto">
                 {notifications.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 dark:text-slate-400 text-sm"><CheckCircle size={32} className="mx-auto mb-2 text-green-500 opacity-50"/>没有新通知</div>
+                  <div className={`p-8 text-center text-sm ${darkMode ? 'text-slate-500' : 'text-[#606060]'}`}><CheckCircle size={32} className="mx-auto mb-2 text-green-500 opacity-50"/>没有新通知</div>
                 ) : (
                   notifications.map(n => (
-                    <div key={n.objectId} onClick={() => { setActiveTab('discussion'); setShowNotifDropdown(false); }} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer border-b border-slate-100 dark:border-slate-800 transition-colors">
+                    <div key={n.objectId} onClick={() => { setActiveTab('discussion'); setShowNotifDropdown(false); }} className={`p-3 cursor-pointer border-b transition-colors ${darkMode ? 'hover:bg-slate-800 border-slate-800' : 'hover:bg-[#f2f2f2] border-[#f9f9f9]'}`}>
                       <div className="flex items-start gap-2">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xs font-bold shrink-0">{n.name ? n.name[0].toUpperCase() : '?'}</div>
+                        <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold shrink-0">{n.name ? n.name[0].toUpperCase() : '?'}</div>
                         <div>
-                          <p className="text-sm text-slate-900 dark:text-slate-100"><span className="font-bold">{n.name}</span> {n.replyTo ? ` 回复了你` : ` 留了言`}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5">"{n.message}"</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{n.createdAt}</p>
+                          <p className={`text-sm ${darkMode ? 'text-slate-200' : 'text-[#0f0f0f]'}`}><span className="font-bold">{n.name}</span> {n.replyTo ? ` 回复了你` : ` 留了言`}</p>
+                          <p className={`text-xs line-clamp-1 mt-0.5 ${darkMode ? 'text-slate-400' : 'text-[#606060]'}`}>"{n.message}"</p>
                         </div>
                       </div>
                     </div>
@@ -598,76 +578,67 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
           )}
         </div>
         {currentUser ? (
-          <button onClick={() => setActiveTab('studio')} className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border border-purple-200 dark:border-purple-900 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors">
-            <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">
-              {currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}
-            </div>
+          <button onClick={() => setActiveTab('studio')} className={`flex items-center gap-2 pl-1 pr-3 py-1 rounded-full border transition-colors ${darkMode ? 'border-blue-900 bg-blue-900/30 hover:bg-blue-900/50' : 'border-purple-200 bg-purple-50 hover:bg-purple-100'}`}>
+            <div className="w-7 h-7 bg-purple-600 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm">{currentUser.username ? currentUser.username[0].toUpperCase() : 'U'}</div>
             <div className="flex flex-col items-start hidden sm:flex">
-              <span className="text-xs font-bold text-purple-900 dark:text-purple-300 leading-none">{currentUser.username}</span>
-              <span className="text-[10px] text-purple-600 dark:text-purple-400 leading-none mt-0.5">Lv.{currentUser.level || 1}</span>
+              <span className={`text-xs font-bold leading-none ${darkMode ? 'text-blue-300' : 'text-purple-900'}`}>{currentUser.username}</span>
+              <span className={`text-[10px] leading-none mt-0.5 ${darkMode ? 'text-blue-400' : 'text-purple-600'}`}>Lv.{currentUser.level || 1}</span>
             </div>
           </button>
         ) : (
-          <button onClick={() => setActiveTab('studio')} className="flex items-center gap-2 border border-slate-200 dark:border-slate-700 text-[#065fd4] dark:text-blue-400 px-3 py-1.5 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/30 text-sm font-medium transition-colors"><User size={20} className="w-5 h-5" /> 登录</button>
+          <button onClick={() => setActiveTab('studio')} className={`flex items-center gap-2 border px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${darkMode ? 'border-slate-700 text-blue-400 hover:bg-slate-800' : 'border-[#e5e5e5] text-[#065fd4] hover:bg-[#def1ff]'}`}><User size={20} className="w-5 h-5" /> 登录</button>
         )}
       </div>
     </header>
   );
 }
 
-function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn }) {
+function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn, darkMode }) {
   if (!isOpen) return null;
+  
+  const sidebarClass = darkMode ? "bg-[#0f172a]/80 border-slate-800" : "bg-white border-[#f0f0f0]";
+  const menuActive = darkMode ? "bg-slate-800 text-slate-100 font-medium" : "bg-[#f2f2f2] text-[#0f0f0f] font-medium";
+  const menuInactive = darkMode ? "hover:bg-slate-800 text-slate-400" : "hover:bg-[#f2f2f2] text-[#0f0f0f]";
+  const iconActive = darkMode ? "text-slate-100" : "text-[#0f0f0f]";
+  const iconInactive = darkMode ? "text-slate-500" : "text-[#606060]";
+
   const MenuItem = ({ id, icon: Icon, label }) => (
-    <button onClick={() => setActiveTab(id)} className={`w-full flex items-center gap-5 px-3 py-2.5 rounded-lg mb-1 transition-colors ${activeTab === id ? 'bg-slate-100 dark:bg-slate-800 font-medium text-slate-900 dark:text-slate-100' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300'}`}>
-      <Icon size={24} className={activeTab === id ? "text-slate-900 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"} strokeWidth={activeTab === id ? 2.5 : 2}/><span className="text-sm tracking-wide truncate">{label}</span>
+    <button onClick={() => setActiveTab(id)} className={`w-full flex items-center gap-5 px-3 py-2.5 rounded-lg mb-1 transition-colors ${activeTab === id ? menuActive : menuInactive}`}>
+      <Icon size={24} className={activeTab === id ? iconActive : iconInactive} strokeWidth={activeTab === id ? 2.5 : 2}/><span className="text-sm tracking-wide truncate">{label}</span>
     </button>
   );
+  
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
-  const today = new Date().toLocaleDateString();
-  const isCheckedIn = currentUser && currentUser.lastCheckInDate === today;
+  const isCheckedIn = currentUser && currentUser.lastCheckInDate === (new Date().toLocaleDateString());
 
   return (
-    <aside className="w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md h-[calc(100vh-56px)] flex flex-col border-r border-slate-200 dark:border-slate-800 transition-colors duration-300">
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
+    <aside className={`w-[240px] flex-shrink-0 overflow-y-auto px-3 pb-4 hidden md:block custom-scrollbar pt-3 backdrop-blur-md h-[calc(100vh-56px)] flex flex-col border-r transition-colors duration-300 ${sidebarClass}`}>
+      <div className={`border-b pb-3 mb-3 ${darkMode ? 'border-slate-800' : 'border-[#e5e5e5]'}`}>
         <MenuItem id="home" icon={Home} label="首页 (项目)" />
         <MenuItem id="community" icon={Compass} label="日常动态" />
         <MenuItem id="discussion" icon={MessageSquare} label="留言板" />
         <MenuItem id="leaderboard" icon={Trophy} label="排行榜" />
       </div>
-      <div className="border-b border-slate-200 dark:border-slate-800 pb-3 mb-3">
-        <h3 className="px-3 py-2 text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">{isAdmin ? "管理员后台" : "个人中心"}</h3>
+      <div className={`border-b pb-3 mb-3 ${darkMode ? 'border-slate-800' : 'border-[#e5e5e5]'}`}>
+        <h3 className={`px-3 py-2 text-base font-bold flex items-center gap-2 ${darkMode ? 'text-slate-100' : 'text-[#0f0f0f]'}`}>{isAdmin ? "管理员后台" : "个人中心"}</h3>
         <MenuItem id="studio" icon={LayoutDashboard} label={isAdmin ? "管理控制台" : "我的账号"} />
       </div>
       
       <div className="mt-auto px-3 mb-2 space-y-2">
         {currentUser && (
-          <button 
-            onClick={onCheckIn}
-            disabled={isCheckedIn}
-            className={`w-full py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-sm ${
-              isCheckedIn 
-              ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-default' 
-              : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-300 hover:scale-[1.02]'
-            }`}
-          >
-            {isCheckedIn ? (
-              <><CheckCircle size={16}/> 今日已签到</>
-            ) : (
-              <><CalendarCheck size={16}/> 每日签到 (+5 XP)</>
-            )}
+          <button onClick={onCheckIn} disabled={isCheckedIn} className={`w-full py-2 rounded-xl flex items-center justify-center gap-2 text-sm font-bold transition-all shadow-sm ${isCheckedIn ? (darkMode ? 'bg-slate-800 text-slate-500' : 'bg-gray-100 text-gray-400') : 'bg-yellow-400 text-yellow-900 hover:bg-yellow-300 hover:scale-[1.02]'}`}>
+            {isCheckedIn ? <><CheckCircle size={16}/> 今日已签到</> : <><CalendarCheck size={16}/> 每日签到 (+5 XP)</>}
           </button>
         )}
-
-        <div className="border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl p-4 flex flex-col items-center justify-center text-center hover:border-blue-200 dark:hover:border-blue-900 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all cursor-pointer group">
-           <p className="text-xs font-bold text-slate-400 group-hover:text-blue-500 transition-colors">📢 广告摊位</p>
-           <p className="text-[10px] text-slate-300 dark:text-slate-600 mt-1 group-hover:text-blue-400 transition-colors">联系博主投放</p>
+        <div className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer group ${darkMode ? 'border-slate-700 hover:border-blue-900 hover:bg-blue-900/10' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50'}`}>
+           <p className={`text-xs font-bold transition-colors ${darkMode ? 'text-slate-400 group-hover:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>📢 广告摊位</p>
+           <p className={`text-[10px] mt-1 transition-colors ${darkMode ? 'text-slate-600' : 'text-gray-300'}`}>联系博主投放</p>
         </div>
       </div>
 
-      <div className="px-3 py-4 text-[12px] text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
-        <div className="flex items-center gap-2 mb-2 p-2 bg-slate-50 dark:bg-slate-800 rounded border border-slate-100 dark:border-slate-700">
-          <Eye size={14} /> 
-          <span>全站浏览: {totalViews}</span>
+      <div className={`px-3 py-4 text-[12px] font-medium leading-relaxed ${darkMode ? 'text-slate-500' : 'text-[#606060]'}`}>
+        <div className={`flex items-center gap-2 mb-2 p-2 rounded border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-gray-50 border-gray-100'}`}>
+          <Eye size={14} /> <span>全站浏览: {totalViews}</span>
         </div>
         <p className="mb-1">关于 • 开发者 • 联系方式</p>
         <p>cailixian2@gmail.com</p>
@@ -678,7 +649,7 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
 }
 
 // --- 首页 (带搜索过滤) ---
-function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpdated, setProjectsUpdated, onViewDetail, onEdit, onNavigate }) {
+function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpdated, setProjectsUpdated, onViewDetail, onEdit, onNavigate, darkMode }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const projectsRef = useRef(null); 
@@ -686,9 +657,9 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
 
   const fetchProjects = async () => {
     if (!Bmob) return;
-    const query = Bmob.Query("projects");
-    query.order("-createdAt");
     try {
+      const query = Bmob.Query("projects");
+      query.order("-createdAt");
       const res = await query.find();
       if(Array.isArray(res)) setProjects(res);
       if (setProjectsUpdated) setProjectsUpdated(false);
@@ -701,14 +672,11 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
   useEffect(() => { fetchProjects(); }, [Bmob]);
   useEffect(() => { if (projectsUpdated) fetchProjects(); }, [projectsUpdated, Bmob]);
 
-  const handleScroll = () => {
-    projectsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
+  const handleScroll = () => { projectsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); };
   const handleDelete = async (e, id) => {
     e.stopPropagation();
     if (!confirm("确定要删除这个项目吗？")) return;
-    try { await Bmob.Query("projects").destroy(id); fetchProjects(); } catch(err) { fetchProjects(); }
+    try { const q = Bmob.Query("projects"); await q.destroy(id); fetchProjects(); } catch(err) { fetchProjects(); }
   };
 
   const filteredProjects = projects.filter(p => {
@@ -717,7 +685,7 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
     return (p.title && p.title.toLowerCase().includes(q)) || (p.description && p.description.toLowerCase().includes(q));
   });
 
-  if (loading) return <div className="py-20 text-center text-slate-500 flex flex-col items-center gap-2"><Loader2 className="animate-spin text-slate-400"/>加载项目...</div>;
+  if (loading) return <div className={`py-20 text-center flex flex-col items-center gap-2 ${darkMode ? 'text-slate-500' : 'text-[#606060]'}`}><Loader2 className="animate-spin"/>加载项目...</div>;
 
   return (
     <div>
@@ -725,18 +693,18 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
       
       <div ref={projectsRef} className="flex gap-3 mb-6 overflow-x-auto pb-2 no-scrollbar scroll-mt-20">
          {['全部', 'Web开发', '移动端', '设计', 'AI工具', '笔记'].map((tag,i) => (
-           <button key={i} className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${i===0 ? 'bg-slate-900 dark:bg-white text-white dark:text-black' : 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{tag}</button>
+           <button key={i} className={`px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${i===0 ? (darkMode ? 'bg-slate-100 text-black' : 'bg-[#0f0f0f] text-white') : (darkMode ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-[#f2f2f2] text-[#0f0f0f] hover:bg-[#e5e5e5]')}`}>{tag}</button>
          ))}
       </div>
       
       {filteredProjects.length === 0 ? (
-        <div className="col-span-full text-center text-slate-500 dark:text-slate-400 py-20">
+        <div className={`col-span-full text-center py-20 ${darkMode ? 'text-slate-500' : 'text-[#606060]'}`}>
           {searchQuery ? `未找到包含 "${searchQuery}" 的项目` : "暂无项目，请去后台发布一个，并确保 Key 设置正确"}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-6 gap-y-10 animate-fadeIn">
           {filteredProjects.map(p => (
-            <ProjectCard key={p.objectId} p={p} isAdmin={isAdmin} handleDelete={handleDelete} handleEdit={onEdit} onViewDetail={onViewDetail} />
+            <ProjectCard key={p.objectId} p={p} isAdmin={isAdmin} handleDelete={handleDelete} handleEdit={onEdit} onViewDetail={onViewDetail} darkMode={darkMode} />
           ))}
         </div>
       )}
@@ -744,8 +712,8 @@ function HomeView({ Bmob, searchQuery, currentUser, setGlobalError, projectsUpda
   );
 }
 
-// --- 极客排行榜 (新功能) ---
-function LeaderboardView({ Bmob }) {
+// --- 极客排行榜 ---
+function LeaderboardView({ Bmob, darkMode }) {
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -764,98 +732,87 @@ function LeaderboardView({ Bmob }) {
         if (index === 0) return <Medal size={24} className="text-yellow-400 fill-yellow-400 animate-pulse" />;
         if (index === 1) return <Medal size={24} className="text-slate-400 fill-slate-300" />;
         if (index === 2) return <Medal size={24} className="text-orange-400 fill-orange-300" />;
-        return <span className="font-bold text-slate-500 w-6 text-center">{index + 1}</span>;
+        return <span className={`font-bold w-6 text-center ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}>{index + 1}</span>;
     };
 
-    if (loading) return <div className="py-20 text-center text-slate-500"><Loader2 className="w-8 h-8 animate-spin mx-auto"/>正在计算排名...</div>;
+    if (loading) return <div className={`py-20 text-center ${darkMode ? 'text-slate-500' : 'text-gray-500'}`}><Loader2 className="w-8 h-8 animate-spin mx-auto"/>正在计算排名...</div>;
+
+    const tableHeader = darkMode ? "bg-slate-900 border-slate-700 text-slate-400" : "bg-gray-50 border-gray-200 text-gray-500";
+    const rowHover = darkMode ? "hover:bg-slate-700/50 border-slate-800" : "hover:bg-gray-50 border-gray-100";
+    const textMain = darkMode ? "text-slate-100" : "text-gray-900";
 
     return (
         <div className="max-w-[800px] mx-auto animate-fadeIn pt-4">
             <div className="flex items-center gap-3 mb-6 bg-gradient-to-r from-yellow-500 to-orange-500 p-6 rounded-2xl text-white shadow-lg">
                 <Trophy size={48} className="text-white fill-white/20"/>
-                <div>
-                    <h2 className="text-2xl font-bold">极客积分排行榜</h2>
-                    <p className="opacity-90">看看谁是全站最强开发者？勤签到、多互动！</p>
-                </div>
+                <div><h2 className="text-2xl font-bold">极客积分排行榜</h2><p className="opacity-90">看看谁是全站最强开发者？勤签到、多互动！</p></div>
             </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+            <div className={`rounded-xl border shadow-sm overflow-hidden ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'}`}>
                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                    <thead className={`border-b ${tableHeader}`}>
                         <tr>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">排名</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">极客</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">等级</th>
-                            <th className="px-6 py-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase text-right">XP 经验值</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase">排名</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase">极客</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase">等级</th>
+                            <th className="px-6 py-4 text-xs font-bold uppercase text-right">XP 经验值</th>
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    <tbody className={`divide-y ${darkMode ? 'divide-slate-800' : 'divide-gray-100'}`}>
                         {users.map((u, index) => (
-                            <tr key={u.objectId} className={`hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors ${index < 3 ? 'bg-yellow-50/30 dark:bg-yellow-900/10' : ''}`}>
-                                <td className="px-6 py-4 flex items-center justify-center sm:justify-start">
-                                    <div className="w-8 flex justify-center">{getMedal(index)}</div>
-                                </td>
+                            <tr key={u.objectId} className={`transition-colors ${rowHover} ${index < 3 ? (darkMode ? 'bg-yellow-900/10' : 'bg-yellow-50/30') : ''}`}>
+                                <td className="px-6 py-4 flex justify-center sm:justify-start"><div className="w-8 flex justify-center">{getMedal(index)}</div></td>
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-blue-500'}`}>
-                                            {u.username ? u.username[0].toUpperCase() : '?'}
-                                        </div>
-                                        <span className={`font-medium ${index === 0 ? 'text-yellow-600 dark:text-yellow-400 font-bold' : 'text-slate-900 dark:text-slate-100'}`}>
-                                            {u.username}
-                                        </span>
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm ${index === 0 ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-blue-500'}`}>{u.username ? u.username[0].toUpperCase() : '?'}</div>
+                                        <span className={`font-medium ${index === 0 ? 'text-yellow-500 font-bold' : textMain}`}>{u.username}</span>
                                     </div>
                                 </td>
-                                <td className="px-6 py-4">
-                                    <span className="px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-xs font-bold text-slate-600 dark:text-slate-300">Lv.{u.level || 1}</span>
-                                </td>
-                                <td className="px-6 py-4 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
-                                    {u.xp || 0}
-                                </td>
+                                <td className="px-6 py-4"><span className={`px-2 py-1 rounded-md text-xs font-bold ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-gray-100 text-gray-600'}`}>Lv.{u.level || 1}</span></td>
+                                <td className={`px-6 py-4 text-right font-mono font-medium ${darkMode ? 'text-slate-300' : 'text-gray-700'}`}>{u.xp || 0}</td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
-                {users.length === 0 && <div className="p-8 text-center text-slate-400">暂无数据</div>}
             </div>
         </div>
     );
 }
 
-// --- 动态墙 (带搜索过滤) ---
-function CommunityView({ Bmob, searchQuery, currentUser }) {
+// --- 动态墙 ---
+function CommunityView({ Bmob, searchQuery, currentUser, darkMode }) {
   const [blogs, setBlogs] = useState([]);
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
   const fetchBlogs = () => { 
-    if (!Bmob) return;
+    if (!Bmob) return; 
     const q = Bmob.Query("blogs");
     q.order("-createdAt");
     q.find().then(res => { if(Array.isArray(res)) setBlogs(res); }); 
   };
   useEffect(() => { fetchBlogs(); }, [Bmob]);
-  const handleDelete = async (id) => { if (!confirm("确定要删除这条动态吗？")) return; try { await Bmob.Query("blogs").destroy(id); fetchBlogs(); } catch(err) { fetchBlogs(); } };
+  const handleDelete = async (id) => { if (!confirm("确定删除？")) return; try { const q = Bmob.Query("blogs"); await q.destroy(id); fetchBlogs(); } catch(err) { fetchBlogs(); } };
   const handleLike = async (id, currentLikes) => {
-    try { setBlogs(blogs.map(b => b.objectId === id ? { ...b, likes: (b.likes || 0) + 1 } : b)); await Bmob.Query("blogs").get(id).then(res => { res.set('likes', (res.likes || 0) + 1); res.save(); }); } catch(e) {}
+    try { setBlogs(blogs.map(b => b.objectId === id ? { ...b, likes: (b.likes || 0) + 1 } : b)); const q = Bmob.Query("blogs"); await q.get(id).then(res => { res.set('likes', (res.likes || 0) + 1); res.save(); }); } catch(e) {}
   };
   const filteredBlogs = blogs.filter(b => (!searchQuery) || (b.content && b.content.toLowerCase().includes(searchQuery.toLowerCase())));
 
+  const cardClass = darkMode ? "bg-slate-800 border-slate-700 hover:shadow-slate-900" : "bg-white border-[#e5e5e5] hover:shadow-md";
+  const textMain = darkMode ? "text-slate-100" : "text-[#0f0f0f]";
+  const textSub = darkMode ? "text-slate-400" : "text-[#606060]";
+
   return (
     <div className="max-w-[850px] mx-auto pt-4 animate-fadeIn">
-      <div className="flex items-center justify-between mb-4"><h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">动态墙</h2><div className="flex gap-4 text-sm text-slate-500"><span className="text-slate-900 dark:text-slate-100 font-medium cursor-pointer border-b-2 border-slate-900 dark:border-white pb-1">全部</span><span className="hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer">最近更新</span></div></div>
+      <div className="flex items-center justify-between mb-4"><h2 className={`text-xl font-bold ${textMain}`}>动态墙</h2><div className={`flex gap-4 text-sm ${textSub}`}><span className={`${textMain} font-medium border-b-2 border-current pb-1`}>全部</span></div></div>
       <div className="space-y-4">
-        {filteredBlogs.length === 0 && searchQuery ? (<div className="text-center text-slate-500 py-10">未找到相关动态</div>) : (
+        {filteredBlogs.length === 0 && searchQuery ? (<div className={`text-center py-10 ${textSub}`}>未找到相关动态</div>) : (
           filteredBlogs.map(b => (
-            <div key={b.objectId} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 hover:shadow-md transition-shadow relative group">
-              {isAdmin && <button onClick={() => handleDelete(b.objectId)} className="absolute top-4 right-4 text-slate-400 hover:text-red-600 transition-colors" title="删除动态"><Trash2 size={18} /></button>}
+            <div key={b.objectId} className={`border rounded-xl p-4 transition-shadow relative group ${cardClass}`}>
+              {isAdmin && <button onClick={() => handleDelete(b.objectId)} className="absolute top-4 right-4 text-gray-400 hover:text-red-600" title="删除"><Trash2 size={18} /></button>}
               <div className="flex gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-600 shrink-0 flex items-center justify-center font-bold text-sm text-white">D</div>
                 <div className="flex-1">
-                  <div className="flex gap-2 items-center mb-1"><span className="font-bold text-sm text-slate-900 dark:text-slate-100">博主动态</span><span className="text-slate-500 text-xs">{b.createdAt}</span></div>
-                  <p className="text-sm text-slate-900 dark:text-slate-200 whitespace-pre-wrap leading-relaxed mb-3">{b.content}</p>
-                  <div className="flex gap-2">
-                     <button onClick={() => handleLike(b.objectId, b.likes)} className="flex items-center gap-2 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-400 active:text-blue-600">
-                        <ThumbsUp size={16} /> <span className="text-xs">{b.likes || 0}</span>
-                     </button>
-                  </div>
+                  <div className="flex gap-2 items-center mb-1"><span className={`font-bold text-sm ${textMain}`}>博主动态</span><span className={`text-xs ${textSub}`}>{b.createdAt}</span></div>
+                  <p className={`text-sm whitespace-pre-wrap leading-relaxed mb-3 ${darkMode ? 'text-slate-200' : 'text-[#0f0f0f]'}`}>{b.content}</p>
+                  <button onClick={() => handleLike(b.objectId, b.likes)} className={`flex items-center gap-2 px-2 py-1 rounded-full text-xs active:scale-95 transition-transform ${darkMode ? 'hover:bg-slate-700 text-slate-400' : 'hover:bg-[#f2f2f2] text-[#606060]'}`}><ThumbsUp size={16} /> {b.likes || 0}</button>
                 </div>
               </div>
             </div>
@@ -866,8 +823,8 @@ function CommunityView({ Bmob, searchQuery, currentUser }) {
   );
 }
 
-// --- 留言板 (完善回复功能) ---
-function DiscussionView({ Bmob, currentUser, onInteraction }) {
+// --- 留言板 ---
+function DiscussionView({ Bmob, currentUser, onInteraction, darkMode }) {
   const [messages, setMessages] = useState([]);
   const [name, setName] = useState('');
   const [msg, setMsg] = useState('');
@@ -878,46 +835,33 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
 
   useEffect(() => { if (currentUser && currentUser.username) setName(currentUser.username); }, [currentUser]);
   const fetchMessages = () => { 
-    if (!Bmob) return;
+    if (!Bmob) return; 
     const q = Bmob.Query("guestbook");
     q.order("-createdAt");
     q.find().then(res => { if(Array.isArray(res)) setMessages(res); }); 
   };
   useEffect(() => { fetchMessages(); }, [Bmob]);
-  const handleDelete = async (id) => { if (!confirm("确定要删除这条留言吗？")) return; try { await Bmob.Query("guestbook").destroy(id); fetchMessages(); } catch(err) { fetchMessages(); } };
-  const handleLike = async (id) => { setMessages(messages.map(m => m.objectId === id ? { ...m, likes: (m.likes || 0) + 1 } : m)); await Bmob.Query("guestbook").get(id).then(res => { res.set('likes', (res.likes || 0) + 1); res.save(); }); };
-
+  const handleDelete = async (id) => { if (!confirm("删除？")) return; try { const q = Bmob.Query("guestbook"); await q.destroy(id); fetchMessages(); } catch(err) { fetchMessages(); } };
+  const handleLike = async (id) => { setMessages(messages.map(m => m.objectId === id ? { ...m, likes: (m.likes || 0) + 1 } : m)); const q = Bmob.Query("guestbook"); await q.get(id).then(res => { res.set('likes', (res.likes || 0) + 1); res.save(); }); };
   const handleReplyClick = (targetName) => { setReplyTarget(targetName); if(msgInputRef.current) msgInputRef.current.focus(); };
   const cancelReply = () => { setReplyTarget(null); };
+  const handleSubmit = (e) => { e.preventDefault(); if (!name.trim() || !msg.trim()) return; setLoading(true); const query = Bmob.Query("guestbook"); query.set("name", name); query.set("message", msg); query.set("likes", 0); if (replyTarget) query.set("replyTo", replyTarget); query.save().then(() => { if(!currentUser) setName(''); setMsg(''); setReplyTarget(null); setLoading(false); fetchMessages(); if (onInteraction) onInteraction(); }).catch(err => { setLoading(false); }); };
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name.trim() || !msg.trim()) return;
-    setLoading(true);
-    const query = Bmob.Query("guestbook");
-    query.set("name", name);
-    query.set("message", msg);
-    query.set("likes", 0);
-    if (replyTarget) query.set("replyTo", replyTarget);
-    query.save().then(() => { if(!currentUser) setName(''); setMsg(''); setReplyTarget(null); setLoading(false); fetchMessages(); if (onInteraction) onInteraction(); alert("评论发布成功！经验+1"); }).catch(err => { alert("发布失败: " + getBmobErrorMsg(err)); setLoading(false); });
-  };
+  const inputClass = darkMode ? "border-slate-700 focus:border-slate-500 text-slate-100 placeholder-slate-500" : "border-[#e5e5e5] focus:border-[#0f0f0f] text-[#0f0f0f] placeholder-[#606060]";
+  const textMain = darkMode ? "text-slate-100" : "text-[#0f0f0f]";
+  const textSub = darkMode ? "text-slate-400" : "text-[#606060]";
 
   return (
     <div className="max-w-[850px] mx-auto pt-2 animate-fadeIn">
       <div className="mb-6">
-        <h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-slate-100">{messages.length} 条留言</h2>
+        <h2 className={`text-xl font-bold mb-6 ${textMain}`}>{messages.length} 条留言</h2>
         <div className="flex gap-4 mb-8">
           <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold shrink-0 text-white">{currentUser ? (currentUser.username[0].toUpperCase()) : '?'}</div>
           <form onSubmit={handleSubmit} className="flex-1">
-            {replyTarget && (
-              <div className="flex items-center justify-between bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-t-lg mb-1 border-b border-blue-100 dark:border-blue-800">
-                <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">正在回复 @{replyTarget}</span>
-                <button type="button" onClick={cancelReply} className="text-blue-400 hover:text-blue-600"><X size={14}/></button>
-              </div>
-            )}
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="怎么称呼你..." className="w-full bg-transparent border-b border-slate-200 dark:border-slate-700 focus:border-slate-900 dark:focus:border-slate-100 outline-none pb-1 mb-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400" disabled={!!currentUser}/>
-            <input ref={msgInputRef} value={msg} onChange={e=>setMsg(e.target.value)} placeholder={replyTarget ? `回复 @${replyTarget}...` : "写下你的留言..."} className="w-full bg-transparent border-b border-slate-200 dark:border-slate-700 focus:border-slate-900 dark:focus:border-slate-100 outline-none pb-1 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400"/>
-            <div className="flex justify-end mt-2 gap-2"><button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium ${(!name || !msg) ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-[#065fd4] text-white hover:bg-[#0056bf]'} transition-colors`}>{loading ? '发布中...' : '发布'}</button></div>
+            {replyTarget && (<div className={`flex items-center justify-between px-3 py-1.5 rounded-t-lg mb-1 border-b ${darkMode ? 'bg-blue-900/20 border-blue-900' : 'bg-blue-50 border-blue-100'}`}><span className="text-xs text-blue-500 font-medium">回复 @{replyTarget}</span><button type="button" onClick={cancelReply} className="text-blue-400"><X size={14}/></button></div>)}
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="称呼..." className={`w-full bg-transparent border-b outline-none pb-1 mb-2 text-sm ${inputClass}`} disabled={!!currentUser}/>
+            <input ref={msgInputRef} value={msg} onChange={e=>setMsg(e.target.value)} placeholder={replyTarget ? `回复...` : "留言..."} className={`w-full bg-transparent border-b outline-none pb-1 text-sm ${inputClass}`}/>
+            <div className="flex justify-end mt-2"><button disabled={loading || !name || !msg} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${(!name || !msg) ? (darkMode ? 'bg-slate-800 text-slate-600' : 'bg-[#f2f2f2] text-[#909090]') : 'bg-[#065fd4] text-white hover:bg-[#0056bf]'}`}>{loading ? '...' : '发布'}</button></div>
           </form>
         </div>
       </div>
@@ -926,15 +870,15 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
           <div key={m.objectId} className="flex gap-4 group relative">
             <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center font-bold shrink-0 text-sm text-white">{m.name ? m.name[0].toUpperCase() : 'A'}</div>
             <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1"><span className="text-xs font-bold text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 cursor-pointer">@{m.name}</span><span className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900">{m.createdAt}</span></div>
-              {m.replyTo && (<div className="text-xs text-[#065fd4] dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 inline-block px-1.5 py-0.5 rounded mb-1">回复 @{m.replyTo}</div>)}
-              <p className="text-sm text-slate-900 dark:text-slate-200 leading-relaxed">{m.message}</p>
+              <div className="flex items-center gap-2 mb-1"><span className={`text-xs font-bold px-2 py-0.5 rounded-full cursor-pointer ${darkMode ? 'bg-slate-800 text-slate-100 hover:bg-slate-700' : 'bg-[#f2f2f2] text-[#0f0f0f] hover:bg-[#e5e5e5]'}`}>@{m.name}</span><span className={`text-xs ${textSub}`}>{m.createdAt}</span></div>
+              {m.replyTo && (<div className={`text-xs inline-block px-1.5 py-0.5 rounded mb-1 text-blue-500 ${darkMode ? 'bg-blue-900/20' : 'bg-blue-50'}`}>回复 @{m.replyTo}</div>)}
+              <p className={`text-sm leading-relaxed ${darkMode ? 'text-slate-200' : 'text-[#0f0f0f]'}`}>{m.message}</p>
               <div className="flex items-center gap-3 mt-2">
-                <div onClick={()=>handleLike(m.objectId)} className="flex items-center gap-1 cursor-pointer hover:text-[#065fd4] text-slate-500 dark:text-slate-400 transition-colors"><ThumbsUp size={14} /> <span className="text-xs">{m.likes || 0}</span></div>
-                <button onClick={() => handleReplyClick(m.name)} className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white cursor-pointer ml-2 flex items-center gap-1">回复</button>
+                <div onClick={()=>handleLike(m.objectId)} className={`flex items-center gap-1 cursor-pointer hover:text-blue-500 transition-colors ${textSub}`}><ThumbsUp size={14} /> <span className="text-xs">{m.likes || 0}</span></div>
+                <button onClick={() => handleReplyClick(m.name)} className={`text-xs font-medium hover:text-blue-500 cursor-pointer ml-2 ${textSub}`}>回复</button>
               </div>
             </div>
-            {isAdmin && <button onClick={() => handleDelete(m.objectId)} className="absolute top-0 right-0 text-slate-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" title="删除留言"><Trash2 size={16} /></button>}
+            {isAdmin && <button onClick={() => handleDelete(m.objectId)} className="absolute top-0 right-0 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16} /></button>}
           </div>
         ))}
       </div>
@@ -942,7 +886,8 @@ function DiscussionView({ Bmob, currentUser, onInteraction }) {
   );
 }
 
-function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, editingProject, onCancelEdit }) {
+// --- 后台管理 ---
+function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, editingProject, onCancelEdit, darkMode }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [pTitle, setPTitle] = useState('');
@@ -965,48 +910,51 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
   }, [editingProject]);
 
   const clearForm = () => { setPTitle(''); setPDesc(''); setPContent(''); setPImg(''); setPLink(''); setIsPreview(false); if (onCancelEdit) onCancelEdit(); };
-  const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败: " + getBmobErrorMsg(err)); }); } else { alert("Bmob 未初始化"); } };
-  const handleRegister = () => { if (Bmob) { let params = { username: username, password: password }; Bmob.User.register(params).then(res => { alert("注册成功，请登录"); }).catch(err => alert("注册失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); } };
+  const handleLogin = (e) => { e.preventDefault(); if (Bmob) { Bmob.User.login(username, password).then(res => { setCurrentUser(res); }).catch(err => { alert("登录失败"); }); } };
+  const handleRegister = () => { if (Bmob) { Bmob.User.register({ username, password }).then(res => { alert("注册成功"); }).catch(err => alert("注册失败")); } };
   const handleLogout = () => { if (Bmob) { Bmob.User.logout(); setCurrentUser(null); } };
 
   const handleAddProject = async (e) => {
     e.preventDefault();
     setIsUploading(true);
-    let imageUrl = pImg;
     try {
       if (!pTitle.trim()) { alert("请输入项目标题"); setIsUploading(false); return; }
       const query = Bmob.Query("projects");
-      if (editingProject) { query.set('id', editingProject.objectId); }
+      if (editingProject) query.set('id', editingProject.objectId);
       query.set("title", pTitle);
       query.set("description", pDesc);
       query.set("content", pContent);
       query.set("git_link", String(pLink || "")); 
-      query.set("image_url", imageUrl || "");
-      if (!editingProject) {
-        try { const acl = Bmob.ACL(); acl.setPublicReadAccess(true); acl.setPublicWriteAccess(true); query.set("ACL", acl); } catch(e) {}
-      }
+      query.set("image_url", pImg || "");
+      if (!editingProject) { try { const acl = Bmob.ACL(); acl.setPublicReadAccess(true); acl.setPublicWriteAccess(true); query.set("ACL", acl); } catch(e) {} }
       await query.save();
       if (setProjectsUpdated) setProjectsUpdated(true);
-      alert(editingProject ? `✅ 项目更新成功!` : `✅ 发布成功!`); 
+      alert(editingProject ? `✅ 更新成功!` : `✅ 发布成功!`); 
       clearForm();
-    } catch (err) { alert((editingProject ? "更新失败: " : "发布失败: ") + (err.error || err.message || JSON.stringify(err))); } finally { setIsUploading(false); }
+    } catch (err) { alert("操作失败"); } finally { setIsUploading(false); }
   };
 
   const handleAddBlog = (e) => {
     e.preventDefault();
-    if (Bmob) { const query = Bmob.Query("blogs"); query.set("content", bContent); query.set("likes", 0); query.save().then(res => { alert("动态发布成功"); setBContent(''); }).catch(err => alert("发布失败: " + getBmobErrorMsg(err))); } else { alert("Bmob 未初始化"); }
+    if (Bmob) { const query = Bmob.Query("blogs"); query.set("content", bContent); query.set("likes", 0); query.save().then(res => { alert("动态发布成功"); setBContent(''); }); }
   };
+
+  // 样式
+  const cardClass = darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-[#e5e5e5]";
+  const inputClass = darkMode ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-blue-500" : "bg-[#f9f9f9] border-[#ccc] text-[#0f0f0f] placeholder-gray-500 focus:border-[#065fd4]";
+  const labelClass = darkMode ? "text-slate-400" : "text-[#606060]";
+  const textMain = darkMode ? "text-slate-100" : "text-[#0f0f0f]";
 
   if (!currentUser) {
     return (
-      <div className="max-w-md mx-auto mt-20 p-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-center shadow-lg animate-fadeIn">
-        <Lock size={32} className="text-[#065fd4] mx-auto mb-4" /><h2 className="text-xl font-bold mb-6 text-slate-900 dark:text-slate-100">账号登录</h2>
+      <div className={`max-w-md mx-auto mt-20 p-8 rounded-xl border text-center shadow-lg animate-fadeIn ${cardClass}`}>
+        <Lock size={32} className="text-[#065fd4] mx-auto mb-4" /><h2 className={`text-xl font-bold mb-6 ${textMain}`}>账号登录</h2>
         <form onSubmit={handleLogin} className="space-y-4">
-          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="用户名" className="studio-input"/>
-          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="密码" className="studio-input"/>
-          <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#065fd4] text-white font-medium py-2 rounded hover:bg-[#0056bf] transition-colors">登录</button><button type="button" onClick={handleRegister} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-slate-100 font-medium py-2 rounded hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">注册</button></div>
+          <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="用户名" className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/>
+          <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="密码" className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/>
+          <div className="flex gap-2"><button type="submit" className="flex-1 bg-[#065fd4] text-white font-medium py-2 rounded hover:bg-[#0056bf] transition-colors">登录</button><button type="button" onClick={handleRegister} className={`flex-1 font-medium py-2 rounded transition-colors ${darkMode ? 'bg-slate-700 text-slate-200 hover:bg-slate-600' : 'bg-[#f2f2f2] text-[#0f0f0f] hover:bg-[#e5e5e5]'}`}>注册</button></div>
         </form>
-        <p className="text-xs text-slate-500 mt-4">登录后可参与评论。如果您是管理员，将进入后台。</p>
+        <p className={`text-xs mt-4 ${labelClass}`}>登录后可参与评论。如果您是管理员，将进入后台。</p>
       </div>
     );
   }
@@ -1014,48 +962,42 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
   const isAdmin = currentUser.username === ADMIN_USERNAME;
   if (!isAdmin) {
     return (
-      <div className="max-w-md mx-auto mt-20 p-8 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-center shadow-lg animate-fadeIn">
-        <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/50 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 dark:text-purple-300 font-bold text-2xl">{currentUser.username[0].toUpperCase()}</div>
-        <h2 className="text-xl font-bold mb-2 text-slate-900 dark:text-slate-100">欢迎，{currentUser.username}</h2><p className="text-slate-500 mb-6">您已登录。现在您可以在留言板使用此身份发布评论。</p>
-        <button onClick={handleLogout} className="w-full border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-medium py-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center gap-2"><LogOut size={16}/> 退出登录</button>
+      <div className={`max-w-md mx-auto mt-20 p-8 rounded-xl border text-center shadow-lg animate-fadeIn ${cardClass}`}>
+        <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 font-bold text-2xl">{currentUser.username[0].toUpperCase()}</div>
+        <h2 className={`text-xl font-bold mb-2 ${textMain}`}>欢迎，{currentUser.username}</h2><p className={`mb-6 ${labelClass}`}>您已登录。</p>
+        <button onClick={handleLogout} className={`w-full border font-medium py-2 rounded flex items-center justify-center gap-2 ${darkMode ? 'border-slate-600 text-slate-300 hover:bg-slate-700' : 'border-[#e5e5e5] text-[#0f0f0f] hover:bg-[#f2f2f2]'}`}><LogOut size={16}/> 退出登录</button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn text-slate-900 dark:text-slate-100 px-4">
-      <div className="flex justify-between items-center mb-8 border-b border-slate-200 dark:border-slate-700 pb-4"><h2 className="text-2xl font-bold flex items-center gap-2"><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className="text-sm text-slate-500 hidden sm:inline">当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className="flex items-center gap-2 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors font-medium text-sm border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"><LogOut size={16}/> 退出</button></div></div>
+    <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn px-4">
+      <div className={`flex justify-between items-center mb-8 border-b pb-4 ${darkMode ? 'border-slate-700' : 'border-[#e5e5e5]'}`}><h2 className={`text-2xl font-bold flex items-center gap-2 ${textMain}`}><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className={`text-sm hidden sm:inline ${labelClass}`}>当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className={`flex items-center gap-2 font-medium text-sm border px-3 py-1.5 rounded-full ${darkMode ? 'border-slate-600 text-slate-400 hover:text-white hover:bg-slate-700' : 'border-[#e5e5e5] text-[#606060] hover:text-[#0f0f0f] hover:bg-[#f2f2f2]'}`}><LogOut size={16}/> 退出</button></div></div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-        <div className={`bg-white dark:bg-slate-800 p-6 rounded-xl border shadow-sm hover:shadow-md transition-shadow flex flex-col h-full ${editingProject ? 'border-blue-500 ring-1 ring-blue-500' : 'border-slate-200 dark:border-slate-700'}`}>
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100 dark:border-slate-700">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-full"><Upload size={20} className="text-[#065fd4] dark:text-blue-400"/></div>
-              <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">{editingProject ? '编辑项目' : '发布项目'}</h3>
-            </div>
-            {editingProject && (<button onClick={clearForm} className="text-xs text-red-500 hover:text-red-700 font-medium bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded">取消编辑</button>)}
+        <div className={`p-6 rounded-xl border shadow-sm flex flex-col h-full ${cardClass} ${editingProject ? 'border-blue-500 ring-1 ring-blue-500' : ''}`}>
+          <div className={`flex items-center justify-between mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}>
+            <div className="flex items-center gap-3"><div className={`p-2 rounded-full ${darkMode ? 'bg-blue-900/30' : 'bg-blue-50'}`}><Upload size={20} className={darkMode ? 'text-blue-400' : 'text-[#065fd4]'}/></div><h3 className={`font-bold text-lg ${textMain}`}>{editingProject ? '编辑项目' : '发布项目'}</h3></div>
+            {editingProject && (<button onClick={clearForm} className="text-xs text-red-500 font-medium border border-red-500/20 px-2 py-1 rounded">取消编辑</button>)}
           </div>
           <form onSubmit={handleAddProject} className="flex-1 flex flex-col gap-4">
-            <div><label className="block text-xs font-medium text-slate-500 mb-1.5">项目标题</label><input value={pTitle} onChange={e=>setPTitle(e.target.value)} placeholder="输入项目标题..." className="studio-input w-full"/></div>
-            <div><label className="block text-xs font-medium text-slate-500 mb-1.5">项目简介 (显示在卡片上)</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} placeholder="简短的一句话描述..." className="studio-input w-full h-20 resize-none"/></div>
+            <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>标题</label><input value={pTitle} onChange={e=>setPTitle(e.target.value)} className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+            <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>简介</label><textarea value={pDesc} onChange={e=>setPDesc(e.target.value)} className={`w-full h-20 resize-none p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
             <div className="flex-1 flex flex-col">
-              <label className="block text-xs font-medium text-slate-500 mb-1.5 flex items-center justify-between">
-                <span className="flex items-center gap-1"><BookOpen size={12}/> 项目详情 (Markdown)</span>
-                <button type="button" onClick={() => setIsPreview(!isPreview)} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 text-xs bg-blue-50 dark:bg-blue-900/20 px-2 py-0.5 rounded transition-colors">{isPreview ? <><PenTool size={10} /> 编辑模式</> : <><EyeIcon size={10} /> 实时预览</>}</button>
-              </label>
-              {isPreview ? (<div className="studio-input w-full h-full min-h-[150px] overflow-auto markdown-body dark:markdown-dark bg-white dark:bg-slate-800 border-2 border-blue-100 dark:border-blue-900 p-4" dangerouslySetInnerHTML={{ __html: parseMarkdownSafe(pContent) }} />) : (<textarea value={pContent} onChange={e=>setPContent(e.target.value)} placeholder={`# 标题&#10;- 列表项`} className="studio-input w-full h-full resize-none min-h-[150px] font-mono text-xs"/>)}
+              <label className={`block text-xs font-medium mb-1.5 flex items-center justify-between ${labelClass}`}><span className="flex items-center gap-1"><BookOpen size={12}/> 详情 (Markdown)</span><button type="button" onClick={() => setIsPreview(!isPreview)} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition-colors ${darkMode ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>{isPreview ? '编辑' : '预览'}</button></label>
+              {isPreview ? (<div className={`w-full h-full min-h-[150px] overflow-auto markdown-body p-4 border rounded ${darkMode ? 'dark-mode-content bg-slate-900 border-slate-700' : 'bg-white border-blue-100'}`} dangerouslySetInnerHTML={{ __html: parseMarkdownSafe(pContent) }} />) : (<textarea value={pContent} onChange={e=>setPContent(e.target.value)} className={`w-full h-full resize-none min-h-[150px] font-mono text-xs p-3 rounded outline-none border transition-colors ${inputClass}`}/>)}
             </div>
             <div className="grid grid-cols-1 gap-4">
-               <div><label className="block text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-1"><LinkIcon size={12}/> 项目封面链接</label><input value={pImg} onChange={e=>setPImg(e.target.value)} placeholder="https://..." className="studio-input w-full"/></div>
-               <div><label className="block text-xs font-medium text-slate-500 mb-1.5">GitHub 链接</label><input value={pLink} onChange={e=>setPLink(e.target.value)} placeholder="GitHub URL" className="studio-input w-full"/></div>
+               <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>封面链接</label><input value={pImg} onChange={e=>setPImg(e.target.value)} className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+               <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>GitHub</label><input value={pLink} onChange={e=>setPLink(e.target.value)} className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
             </div>
-            <div className="mt-auto pt-4"><button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-slate-400 ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>{isUploading ? '正在处理...' : (editingProject ? '更新项目' : '发布项目')}</button></div>
+            <div className="mt-auto pt-4"><button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm active:transform active:scale-[0.99] disabled:bg-slate-400 ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>{isUploading ? '处理中...' : (editingProject ? '更新' : '发布')}</button></div>
           </form>
         </div>
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow flex flex-col h-full">
-          <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700"><div className="p-2 bg-green-50 dark:bg-green-900/20 rounded-full"><PenTool size={20} className="text-[#0fa958] dark:text-green-400"/> </div><h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">发布动态</h3></div>
+        <div className={`p-6 rounded-xl border shadow-sm flex flex-col h-full ${cardClass}`}>
+          <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}><div className={`p-2 rounded-full ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}><PenTool size={20} className={darkMode ? 'text-green-400' : 'text-[#0fa958]'}/> </div><h3 className={`font-bold text-lg ${textMain}`}>发布动态</h3></div>
           <form onSubmit={handleAddBlog} className="flex-1 flex flex-col gap-4">
-            <div className="flex-1 flex flex-col"><label className="block text-xs font-medium text-slate-500 mb-1.5">动态内容</label><textarea value={bContent} onChange={e=>setBContent(e.target.value)} placeholder="分享今天的技术思考或生活点滴..." className="studio-input flex-1 resize-none min-h-[320px] w-full"/></div>
-            <div className="mt-auto pt-4"><button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm active:transform active:scale-[0.99]">发布动态</button></div>
+            <div className="flex-1 flex flex-col"><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>动态内容</label><textarea value={bContent} onChange={e=>setBContent(e.target.value)} className={`flex-1 resize-none min-h-[320px] w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+            <div className="mt-auto pt-4"><button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm">发布动态</button></div>
           </form>
         </div>
       </div>
@@ -1068,18 +1010,9 @@ function ConfigErrorScreen({ type }) {
     <div className="min-h-screen bg-[#f9f9f9] text-[#0f0f0f] flex items-center justify-center p-4">
       <div className="max-w-md text-center bg-white p-8 rounded-xl border border-[#e5e5e5] shadow-lg">
         <AlertTriangle size={64} className="mx-auto text-red-600 mb-4" />
-        {type === "MASTER_KEY_MISSING" ? (
-          <>
-            <h1 className="text-2xl font-bold mb-2">缺少 Master Key</h1>
-            <p className="text-[#606060] mb-6">为了实现用户经验值的更新功能，需要在初始化时传入 Master Key。<br/>请在代码中填写 <code>BMOB_MASTER_KEY</code>。</p>
-          </>
-        ) : (
-          <>
-            <h1 className="text-2xl font-bold mb-2">配置错误：API 安全码</h1>
-            <p className="text-[#606060] mb-6">你的代码填入了 API 安全码，但 Bmob 后台似乎还没有启用它。</p>
-          </>
-        )}
-        <button onClick={()=>window.location.reload()} className="bg-[#065fd4] text-white px-6 py-2 rounded-full hover:bg-[#0056bf] mt-6">设置好了，刷新页面</button>
+        <h1 className="text-2xl font-bold mb-2">{type === "MASTER_KEY_MISSING" ? "缺少 Master Key" : "配置错误"}</h1>
+        <p className="text-[#606060] mb-6">请检查代码顶部的 Bmob 配置。</p>
+        <button onClick={()=>window.location.reload()} className="bg-[#065fd4] text-white px-6 py-2 rounded-full hover:bg-[#0056bf] mt-6">刷新页面</button>
       </div>
     </div>
   );
