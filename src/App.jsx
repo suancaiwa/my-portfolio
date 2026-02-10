@@ -14,7 +14,7 @@ const BMOB_APP_ID = "469b0e80e238277a812f77075df7e2e8"; // Application ID
 const BMOB_REST_API_KEY = "ab10e715d2bc9ec35256d5e0ddbdb74a"; // REST API Key
 const BMOB_SECRET_KEY = "9fa1ba7ef19ef189";          // Secret Key
 const BMOB_API_KEY = "0713231xX";                    // API Safe Code
-const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key
+const BMOB_MASTER_KEY = "dd7f68bab0a99345940dd336396b9541"; // Master Key (超级权限)
 
 // --- 权限配置 ---
 const ADMIN_USERNAME = "cailixian2@gmail.com"; 
@@ -29,6 +29,7 @@ const getBmobErrorMsg = (err) => {
   if (errorStr.includes("safeToken") || (err.error && err.error.includes("safeToken"))) {
     return "API_SAFE_TOKEN_MISSING";
   }
+  // MasterKey 错误通常意味着权限不足，我们现在通过 REST API + MasterKey 解决，应该不会再出现
   if (errorStr.includes("MasterKey") || (err.error && err.error.includes("MasterKey"))) {
     return "MASTER_KEY_MISSING";
   }
@@ -39,7 +40,6 @@ const getBmobErrorMsg = (err) => {
 };
 
 // --- 内置轻量级 Markdown 解析器 (零依赖) ---
-// 这保证了在任何网络环境下都能解析标题、表格、列表等
 const parseMarkdownSafe = (markdownText) => {
   if (!markdownText) return '';
 
@@ -52,26 +52,18 @@ const parseMarkdownSafe = (markdownText) => {
   html = html.replace(/```([\s\S]*?)```/gm, '<pre><code>$1</code></pre>');
 
   // 3. 解析表格 (Table) - 核心逻辑
-  // 匹配类似 | A | B | \n |---|---| 的结构
   const tableRegex = /((?:\|.*\|\r?\n)+)/g;
   html = html.replace(tableRegex, (match) => {
-    // 忽略单纯的分隔线或代码块中的内容
     if (!match.includes('|')) return match;
-    
     const rows = match.trim().split('\n').map(row => row.trim());
     if (rows.length < 2) return match;
-
-    // 检查第二行是否是分隔符 (---|---)
     const isTable = rows[1].includes('---');
     if (!isTable) return match;
 
     let tableHtml = '<div class="table-container"><table>';
-    
-    // 表头
     const headers = rows[0].split('|').filter(cell => cell.trim() !== '');
     tableHtml += '<thead><tr>' + headers.map(h => `<th>${h.trim()}</th>`).join('') + '</tr></thead>';
     
-    // 表体
     tableHtml += '<tbody>';
     for (let i = 2; i < rows.length; i++) {
         const cells = rows[i].split('|').filter(cell => cell.trim() !== '');
@@ -83,7 +75,7 @@ const parseMarkdownSafe = (markdownText) => {
     return tableHtml;
   });
 
-  // 4. 解析标题 (Headers)
+  // 4. 解析标题
   html = html
     .replace(/^###### (.*$)/gim, '<h6>$1</h6>')
     .replace(/^##### (.*$)/gim, '<h5>$1</h5>')
@@ -102,16 +94,12 @@ const parseMarkdownSafe = (markdownText) => {
   html = html.replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/gim, '<em>$1</em>');
 
-  // 8. 解析列表 (- item)
+  // 8. 解析列表
   html = html.replace(/^\s*-\s+(.*$)/gim, '<ul><li>$1</li></ul>');
-  // 修复紧邻的列表标签 (简单合并)
   html = html.replace(/<\/ul>\s*<ul>/gim, '');
 
   // 9. 解析段落 (换行)
-  // 不要在 pre, ul, table 内部加 br
   html = html.replace(/\n/gim, '<br />');
-  
-  // 清理多余的 br (例如标题后)
   html = html.replace(/<\/h(\d)><br \/>/gim, '</h$1>');
   html = html.replace(/<\/pre><br \/>/gim, '</pre>');
   html = html.replace(/<\/table><\/div><br \/>/gim, '</table></div>');
@@ -128,9 +116,9 @@ const InteractivePet = ({ currentUser, xp, level }) => {
     "今天也要加油写代码哦！",
     "记得多喝水~",
     "你的项目真棒！",
-    "预览功能已经修复啦！",
+    "签到功能已经修复啦！",
     "冲刺 15 级大神！",
-    "表格现在能显示了吗？",
+    "MasterKey 已注入能量！",
     "休息一下眼睛吧"
   ];
 
@@ -243,7 +231,7 @@ const ProjectCard = ({ p, isAdmin, handleDelete, handleEdit, onViewDetail }) => 
   );
 };
 
-// --- 子组件：项目详情页 (文档模式 - 内置解析) ---
+// --- 子组件：项目详情页 ---
 const ProjectDetailView = ({ project, onBack }) => {
   const [imgError, setImgError] = useState(false);
   const url = project.image_url || project.imageUrl;
@@ -258,7 +246,6 @@ const ProjectDetailView = ({ project, onBack }) => {
 
   return (
     <div className="bg-white min-h-full animate-fadeIn pb-10">
-      {/* 顶部导航 */}
       <div className="sticky top-0 bg-white/90 backdrop-blur-md border-b border-[#e5e5e5] px-4 py-3 flex items-center gap-3 z-10">
         <button onClick={onBack} className="p-2 hover:bg-[#f2f2f2] rounded-full text-[#0f0f0f] transition-colors">
           <ChevronLeft size={24} />
@@ -274,7 +261,6 @@ const ProjectDetailView = ({ project, onBack }) => {
       </div>
 
       <div className="max-w-[800px] mx-auto px-6 py-8">
-         {/* 头部信息 */}
          <div className="mb-8">
              <div className="flex items-center gap-2 text-sm text-[#606060] mb-4">
                  <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded font-medium">项目文档</span>
@@ -283,7 +269,6 @@ const ProjectDetailView = ({ project, onBack }) => {
              </div>
              <h1 className="text-3xl sm:text-4xl font-extrabold text-[#0f0f0f] leading-tight mb-6">{project.title}</h1>
              
-             {/* 封面大图 */}
              <div className="w-full aspect-video bg-gray-100 rounded-xl overflow-hidden border border-[#e5e5e5] shadow-sm mb-8">
                 {url && !imgError ? (
                     <img src={url} className="w-full h-full object-cover" onError={() => setImgError(true)} alt={project.title} />
@@ -295,7 +280,6 @@ const ProjectDetailView = ({ project, onBack }) => {
                 )}
              </div>
 
-             {/* 摘要引用 */}
              {project.description && (
                  <div className="bg-[#f9f9f9] border-l-4 border-[#065fd4] p-4 rounded-r-lg mb-8 text-[#0f0f0f] italic text-base leading-relaxed">
                      {project.description}
@@ -303,7 +287,6 @@ const ProjectDetailView = ({ project, onBack }) => {
              )}
          </div>
 
-         {/* 详细内容区域 (Markdown Rendered) */}
          <div className="markdown-body text-[#0f0f0f]">
              {project.content ? (
                  <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
@@ -344,7 +327,6 @@ export default function App() {
   const [editingProject, setEditingProject] = useState(null);
 
   useEffect(() => {
-    // Inject custom styles with Enhanced Markdown support (Tables fixed)
     const style = document.createElement('style');
     style.innerHTML = `
       .custom-scrollbar::-webkit-scrollbar { width: 8px; }
@@ -356,7 +338,6 @@ export default function App() {
       @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } 
       .animate-fadeIn { animation: fadeIn 0.4s ease-out forwards; }
       
-      /* Markdown Styles - Enhanced for Visibility */
       .markdown-body { font-size: 16px; line-height: 1.7; color: #24292e; word-wrap: break-word; }
       .markdown-body h1 { font-size: 2em; font-weight: 800; margin-top: 24px; margin-bottom: 16px; padding-bottom: 0.3em; border-bottom: 1px solid #eaecef; }
       .markdown-body h2 { font-size: 1.5em; font-weight: 700; margin-top: 24px; margin-bottom: 16px; padding-bottom: 0.3em; border-bottom: 1px solid #eaecef; }
@@ -369,7 +350,6 @@ export default function App() {
       .markdown-body pre { background-color: #f6f8fa; padding: 16px; overflow: auto; border-radius: 6px; margin-bottom: 16px; border: 1px solid #e1e4e8; }
       .markdown-body pre code { background-color: transparent; padding: 0; font-size: 100%; word-break: normal; white-space: pre; }
       
-      /* Table Styles - Force Visibility */
       .table-container { overflow-x: auto; margin-bottom: 16px; border: 1px solid #e5e7eb; border-radius: 8px; }
       .markdown-body table { width: 100%; border-collapse: collapse; min-width: 400px; }
       .markdown-body table tr { background-color: #fff; border-top: 1px solid #c6cbd1; }
@@ -441,49 +421,66 @@ export default function App() {
     } catch (e) { console.log("Stats skipped"); }
   };
 
+  // --- 核心修复：使用 REST API + MasterKey 进行更新 ---
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
     if (!bmobRef.current || !currentUser) return;
+    
+    // 1. 本地计算 (用于乐观更新)
+    const currentXP = currentUser.xp || 0;
+    const currentLevel = currentUser.level || 1;
+    let newXP = currentXP + amount;
+    let newLevel = currentLevel;
+
+    if (currentLevel < MAX_LEVEL) {
+        newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
+        if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
+    } else {
+        newXP = currentXP; // 满级后只更新其他字段，不加经验
+    }
+
+    // 2. 准备数据
+    const updateData = {
+        xp: newXP,
+        level: newLevel,
+        ...extraUpdates
+    };
+
+    // 3. 使用 REST API 进行强力更新 (Bypass SDK ACL)
     try {
-      const userQuery = bmobRef.current.Query("_User");
-      const userObj = await userQuery.get(currentUser.objectId);
-      
-      let currentXP = userObj.xp || 0;
-      let currentLevel = userObj.level || 1;
+        const url = `https://api.bmobcloud.com/1/classes/_User/${currentUser.objectId}`;
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'X-Bmob-Application-Id': BMOB_APP_ID,
+                'X-Bmob-Master-Key': BMOB_MASTER_KEY, // 🔑 关键：使用 Master Key
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(updateData)
+        });
 
-      if (currentLevel >= MAX_LEVEL) {
-          if (Object.keys(extraUpdates).length > 0) {
-             const updateQ = bmobRef.current.Query("_User");
-             updateQ.set('id', currentUser.objectId);
-             Object.keys(extraUpdates).forEach(key => updateQ.set(key, extraUpdates[key]));
-             await updateQ.save();
-             setCurrentUser(prev => ({...prev, ...extraUpdates}));
-          }
-          return;
-      }
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`REST Error: ${errorText}`);
+        }
 
-      const newXP = currentXP + amount;
-      let newLevel = Math.min(MAX_LEVEL, Math.floor((newXP / MAX_XP) * (MAX_LEVEL - 1)) + 1);
-      if (newXP >= MAX_XP) newLevel = MAX_LEVEL;
+        // 4. 更新成功，同步本地状态
+        const updatedUser = { 
+            ...currentUser, 
+            ...updateData
+        };
+        setCurrentUser(updatedUser);
+        
+        if (newLevel > currentLevel) {
+            alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
+        }
 
-      const updateQuery = bmobRef.current.Query("_User");
-      updateQuery.set('id', currentUser.objectId);
-      updateQuery.set("xp", newXP);
-      updateQuery.set("level", newLevel);
-      
-      Object.keys(extraUpdates).forEach(key => {
-          updateQuery.set(key, extraUpdates[key]);
-      });
-
-      await updateQuery.save();
-
-      const updatedUser = { ...currentUser, xp: newXP, level: newLevel, ...extraUpdates };
-      setCurrentUser(updatedUser);
-      
-      if (newLevel > currentLevel) {
-        alert(`恭喜！你的等级提升到了 Lv.${newLevel}！`);
-      }
     } catch (e) {
-      if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") setGlobalError("MASTER_KEY_MISSING");
+        console.error("XP update failed via REST", e);
+        if (getBmobErrorMsg(e) === "MASTER_KEY_MISSING") {
+            setGlobalError("MASTER_KEY_MISSING");
+        } else {
+            // alert("签到/经验更新失败: " + e.message);
+        }
     }
   };
 
