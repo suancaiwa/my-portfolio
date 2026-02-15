@@ -7,7 +7,7 @@ import {
   Laptop, ExternalLink, Smile, Trash2, Image as ImageIcon, FileCheck,
   Eye, CheckCircle, Cat, Zap, Award, CalendarCheck, HelpCircle, Link as LinkIcon,
   ChevronLeft, BookOpen, Layers, Edit3, Eye as EyeIcon, RefreshCw,
-  Moon, Sun, Trophy, Medal
+  Moon, Sun, Trophy, Medal, Megaphone
 } from 'lucide-react';
 
 // --- 配置区域 (Bmob) ---
@@ -92,13 +92,13 @@ const HeroBanner = ({ user, onViewDetail, onScroll, onRegister }) => (
     <div className="relative z-10 flex flex-col items-start max-w-3xl">
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold mb-4 border border-white/30 text-white">
         <Zap size={14} className="fill-yellow-400 text-yellow-400" />
-        <span>NineIce 2.0 更新已上线</span>
+        <span>NineIce 正式上线</span>
       </div>
       <h1 className="text-3xl sm:text-5xl font-extrabold mb-4 tracking-tight leading-tight">
         {user ? `欢迎回来, ${user.username}!` : '探索极客代码世界'}
       </h1>
       <p className="text-lg sm:text-xl text-indigo-100 mb-8 max-w-2xl leading-relaxed">
-        在这里发现优质开源项目，分享你的技术见解。加入极客榜单，与顶尖开发者一较高下。
+        博主会不定时在这分享开源项目，大胆表达你的技术见解。分享给身边的伙伴，一起学习，一起进步。
       </p>
       <div className="flex gap-4">
         <button onClick={onScroll} className="bg-white text-indigo-700 px-8 py-3 rounded-full font-bold shadow-lg hover:shadow-2xl hover:-translate-y-1 transition-all active:scale-95 flex items-center gap-2">
@@ -291,6 +291,7 @@ export default function App() {
   const bmobRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
+  const [adConfig, setAdConfig] = useState(null); // 新增广告配置状态
   
   // 核心修复：根据屏幕宽度初始化 Sidebar 状态，手机端默认关闭
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
@@ -405,6 +406,7 @@ export default function App() {
              });
           }
           updateSiteViews(window.Bmob);
+          fetchAdConfig(window.Bmob); // 初始化时获取广告配置
         } catch (e) { console.error("Bmob init error", e); }
       }
       setIsLibLoaded(true);
@@ -430,6 +432,25 @@ export default function App() {
         setTotalViews(1);
       }
     } catch (e) { }
+  };
+
+  // 获取广告配置 - 核心修复：忽略 101 错误 (表不存在)
+  const fetchAdConfig = async (bmobInstance) => {
+    const bmob = bmobInstance || bmobRef.current;
+    if (!bmob) return;
+    try {
+      const query = bmob.Query("AdConfig");
+      const res = await query.find();
+      if (res && res.length > 0) {
+        setAdConfig(res[0]);
+      }
+    } catch (e) { 
+        if (e && e.code === 101) {
+            console.log("AdConfig table not initialized yet.");
+        } else {
+            console.error("Ad fetch error", e); 
+        }
+    }
   };
 
   const handleAddXP = async (amount = 1, extraUpdates = {}) => {
@@ -507,7 +528,8 @@ export default function App() {
             currentUser={currentUser} 
             totalViews={totalViews} 
             onCheckIn={handleCheckIn} 
-            darkMode={darkMode} 
+            darkMode={darkMode}
+            adConfig={adConfig} // 传递广告配置
         />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full">
@@ -519,7 +541,7 @@ export default function App() {
                 {activeTab === 'community' && <CommunityView Bmob={bmobRef.current} searchQuery={searchQuery} currentUser={currentUser} darkMode={darkMode} />}
                 {activeTab === 'discussion' && <DiscussionView Bmob={bmobRef.current} currentUser={currentUser} onInteraction={()=>handleAddXP(1)} darkMode={darkMode} />}
                 {activeTab === 'leaderboard' && <LeaderboardView Bmob={bmobRef.current} currentUser={currentUser} darkMode={darkMode} />}
-                {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} editingProject={editingProject} onCancelEdit={() => setEditingProject(null)} darkMode={darkMode} />}
+                {activeTab === 'studio' && <StudioView Bmob={bmobRef.current} currentUser={currentUser} setCurrentUser={setCurrentUser} setProjectsUpdated={setProjectsUpdated} editingProject={editingProject} onCancelEdit={() => setEditingProject(null)} darkMode={darkMode} refreshAdConfig={() => fetchAdConfig(bmobRef.current)} />}
              </div>
           )}
 
@@ -635,10 +657,8 @@ function Header({ isSidebarOpen, setIsSidebarOpen, currentUser, setActiveTab, se
   );
 }
 
-function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn, darkMode }) {
-  // 核心修复：根据 isOpen 状态决定是否渲染
-  // 在手机端 (absolute) 且关闭时，使用 -translate-x-full 隐藏，而不是 null
-  // 在电脑端 (static)，如果关闭，可能需要收缩，但这里保持 md:block 逻辑
+function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onCheckIn, darkMode, adConfig }) {
+  if (!isOpen) return null;
   
   const sidebarClass = darkMode ? "bg-[#0f172a]/95 border-slate-800" : "bg-white/95 border-[#f0f0f0]";
   const menuActive = darkMode ? "bg-slate-800 text-slate-100 font-medium" : "bg-[#f2f2f2] text-[#0f0f0f] font-medium";
@@ -655,19 +675,8 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
   const isCheckedIn = currentUser && currentUser.lastCheckInDate === (new Date().toLocaleDateString());
 
-  // 核心修复：CSS 类控制显示隐藏
   // Mobile: absolute position, z-50, transition transform
   // Desktop: relative (static), no transform
-  const visibilityClass = isOpen 
-    ? "translate-x-0" 
-    : "-translate-x-full md:translate-x-0 md:hidden"; // Desktop hidden if closed? Or maintain? 
-    // Usually desktop toggles width or visibility. Let's make desktop toggle visibility:
-    // If desktop closed: hidden. If open: block.
-    // Re-eval: The App logic sets isOpen based on width.
-    
-  // 最终逻辑：
-  // Mobile: absolute, z-50, transform based on isOpen
-  // Desktop: relative, transform-none, block/hidden based on isOpen
   
   const layoutClass = "fixed inset-y-0 left-0 z-50 md:static md:z-auto h-full"; // 手机端fixed, 电脑端static
   const transformClass = isOpen ? "translate-x-0" : "-translate-x-full md:hidden";
@@ -691,10 +700,20 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
             {isCheckedIn ? <><CheckCircle size={16}/> 今日已签到</> : <><CalendarCheck size={16}/> 每日签到 (+5 XP)</>}
           </button>
         )}
-        <div className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer group ${darkMode ? 'border-slate-700 hover:border-blue-900 hover:bg-blue-900/10' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50'}`}>
-           <p className={`text-xs font-bold transition-colors ${darkMode ? 'text-slate-400 group-hover:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>📢 广告摊位</p>
-           <p className={`text-[10px] mt-1 transition-colors ${darkMode ? 'text-slate-600' : 'text-gray-300'}`}>联系博主投放</p>
-        </div>
+        
+        {/* 广告位渲染逻辑 */}
+        {adConfig && adConfig.imageUrl ? (
+            <a href={adConfig.linkUrl || '#'} target="_blank" rel="noreferrer" className="block w-full rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group relative mb-2">
+                <img src={adConfig.imageUrl} alt="Ad" className="w-full h-auto object-cover" />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                <div className="absolute bottom-1 right-1 bg-black/50 text-white text-[10px] px-1 rounded backdrop-blur-sm">广告</div>
+            </a>
+        ) : (
+            <div className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer group ${darkMode ? 'border-slate-700 hover:border-blue-900 hover:bg-blue-900/10' : 'border-gray-200 hover:border-blue-200 hover:bg-blue-50'}`}>
+               <p className={`text-xs font-bold transition-colors ${darkMode ? 'text-slate-400 group-hover:text-blue-400' : 'text-gray-400 group-hover:text-blue-500'}`}>📢 广告摊位</p>
+               <p className={`text-[10px] mt-1 transition-colors ${darkMode ? 'text-slate-600' : 'text-gray-300'}`}>联系博主投放</p>
+            </div>
+        )}
       </div>
 
       <div className={`px-3 py-4 text-[12px] font-medium leading-relaxed ${darkMode ? 'text-slate-500' : 'text-[#606060]'}`}>
@@ -948,7 +967,7 @@ function DiscussionView({ Bmob, currentUser, onInteraction, darkMode }) {
 }
 
 // --- 后台管理 ---
-function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, editingProject, onCancelEdit, darkMode }) {
+function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, editingProject, onCancelEdit, darkMode, refreshAdConfig }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [pTitle, setPTitle] = useState('');
@@ -957,6 +976,11 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
   const [pLink, setPLink] = useState('');
   const [pImg, setPImg] = useState('');
   const [bContent, setBContent] = useState('');
+  
+  // 新增广告位状态
+  const [adImg, setAdImg] = useState('');
+  const [adLink, setAdLink] = useState('');
+
   const [isUploading, setIsUploading] = useState(false);
   const [isPreview, setIsPreview] = useState(false); 
   
@@ -1000,6 +1024,46 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
     if (Bmob) { const query = Bmob.Query("blogs"); query.set("content", bContent); query.set("likes", 0); query.save().then(res => { alert("动态发布成功"); setBContent(''); }); }
   };
 
+  const handleUpdateAd = async (e) => {
+    e.preventDefault();
+    if (!Bmob) return;
+    
+    // 逻辑优化：先尝试查询，无论查询报错还是为空，都尝试写入
+    let existingId = null;
+    
+    try {
+        const query = Bmob.Query("AdConfig");
+        const res = await query.find();
+        if (res && res.length > 0) {
+            existingId = res[0].objectId;
+        }
+    } catch (err) {
+        // 忽略查询错误（如表不存在），直接进入创建流程
+    }
+
+    try {
+        const q = Bmob.Query("AdConfig");
+        if (existingId) {
+            // 更新模式：必须先 get 获取对象实例
+            const obj = await q.get(existingId);
+            obj.set("imageUrl", adImg);
+            obj.set("linkUrl", adLink);
+            await obj.save();
+            alert("广告位更新成功！");
+        } else {
+            // 创建模式
+            q.set("imageUrl", adImg);
+            q.set("linkUrl", adLink);
+            await q.save();
+            alert("广告位创建成功！");
+        }
+        if (refreshAdConfig) refreshAdConfig();
+    } catch (saveErr) {
+        console.error(saveErr);
+        alert("设置失败: " + (saveErr.error || saveErr.message));
+    }
+  };
+
   // 样式
   const cardClass = darkMode ? "bg-slate-800 border-slate-700" : "bg-white border-[#e5e5e5]";
   const inputClass = darkMode ? "bg-slate-900 border-slate-700 text-slate-100 placeholder-slate-500 focus:border-blue-500" : "bg-[#f9f9f9] border-[#ccc] text-[#0f0f0f] placeholder-gray-500 focus:border-[#065fd4]";
@@ -1032,10 +1096,11 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
   }
 
   return (
-    <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn px-4">
+    <div className="max-w-[1200px] mx-auto pt-6 animate-fadeIn px-4 pb-20">
       <div className={`flex justify-between items-center mb-8 border-b pb-4 ${darkMode ? 'border-slate-700' : 'border-[#e5e5e5]'}`}><h2 className={`text-2xl font-bold flex items-center gap-2 ${textMain}`}><LayoutDashboard size={28} className="text-red-600"/>管理员控制台</h2><div className="flex items-center gap-4"><span className={`text-sm hidden sm:inline ${labelClass}`}>当前身份: <span className="text-[#065fd4] font-medium">{currentUser.username}</span></span><button onClick={handleLogout} className={`flex items-center gap-2 font-medium text-sm border px-3 py-1.5 rounded-full ${darkMode ? 'border-slate-600 text-slate-400 hover:text-white hover:bg-slate-700' : 'border-[#e5e5e5] text-[#606060] hover:text-[#0f0f0f] hover:bg-[#f2f2f2]'}`}><LogOut size={16}/> 退出</button></div></div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
-        <div className={`p-6 rounded-xl border shadow-sm flex flex-col h-full ${cardClass} ${editingProject ? 'border-blue-500 ring-1 ring-blue-500' : ''}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+        {/* 项目发布/编辑 */}
+        <div className={`p-6 rounded-xl border shadow-sm flex flex-col ${cardClass} ${editingProject ? 'border-blue-500 ring-1 ring-blue-500' : ''}`}>
           <div className={`flex items-center justify-between mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}>
             <div className="flex items-center gap-3"><div className={`p-2 rounded-full ${darkMode ? 'bg-blue-900/30' : 'bg-blue-50'}`}><Upload size={20} className={darkMode ? 'text-blue-400' : 'text-[#065fd4]'}/></div><h3 className={`font-bold text-lg ${textMain}`}>{editingProject ? '编辑项目' : '发布项目'}</h3></div>
             {editingProject && (<button onClick={clearForm} className="text-xs text-red-500 font-medium border border-red-500/20 px-2 py-1 rounded">取消编辑</button>)}
@@ -1054,12 +1119,27 @@ function StudioView({ Bmob, currentUser, setCurrentUser, setProjectsUpdated, edi
             <div className="mt-auto pt-4"><button disabled={isUploading} className={`w-full text-white font-medium py-2.5 rounded-lg text-sm transition-colors shadow-sm ${editingProject ? 'bg-green-600 hover:bg-green-700' : 'bg-[#065fd4] hover:bg-[#0056bf]'}`}>{isUploading ? '处理中...' : (editingProject ? '更新' : '发布')}</button></div>
           </form>
         </div>
-        <div className={`p-6 rounded-xl border shadow-sm flex flex-col h-full ${cardClass}`}>
-          <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}><div className={`p-2 rounded-full ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}><PenTool size={20} className={darkMode ? 'text-green-400' : 'text-[#0fa958]'}/> </div><h3 className={`font-bold text-lg ${textMain}`}>发布动态</h3></div>
-          <form onSubmit={handleAddBlog} className="flex-1 flex flex-col gap-4">
-            <div className="flex-1 flex flex-col"><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>动态内容</label><textarea value={bContent} onChange={e=>setBContent(e.target.value)} className={`flex-1 resize-none min-h-[320px] w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
-            <div className="mt-auto pt-4"><button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm">发布动态</button></div>
-          </form>
+
+        {/* 右侧两栏布局 */}
+        <div className="flex flex-col gap-6">
+            {/* 动态发布 */}
+            <div className={`p-6 rounded-xl border shadow-sm ${cardClass}`}>
+              <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}><div className={`p-2 rounded-full ${darkMode ? 'bg-green-900/30' : 'bg-green-50'}`}><PenTool size={20} className={darkMode ? 'text-green-400' : 'text-[#0fa958]'}/> </div><h3 className={`font-bold text-lg ${textMain}`}>发布动态</h3></div>
+              <form onSubmit={handleAddBlog} className="flex-1 flex flex-col gap-4">
+                <div className="flex-1 flex flex-col"><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>动态内容</label><textarea value={bContent} onChange={e=>setBContent(e.target.value)} className={`flex-1 resize-none min-h-[180px] w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+                <div className="mt-auto pt-4"><button className="w-full bg-[#065fd4] text-white font-medium py-2.5 rounded-lg text-sm hover:bg-[#0056bf] transition-colors shadow-sm">发布动态</button></div>
+              </form>
+            </div>
+
+            {/* 广告位管理 */}
+            <div className={`p-6 rounded-xl border shadow-sm ${cardClass}`}>
+              <div className={`flex items-center gap-3 mb-6 pb-4 border-b ${darkMode ? 'border-slate-700' : 'border-[#f2f2f2]'}`}><div className={`p-2 rounded-full ${darkMode ? 'bg-yellow-900/30' : 'bg-yellow-50'}`}><Megaphone size={20} className={darkMode ? 'text-yellow-400' : 'text-yellow-600'}/> </div><h3 className={`font-bold text-lg ${textMain}`}>广告位配置</h3></div>
+              <form onSubmit={handleUpdateAd} className="flex-1 flex flex-col gap-4">
+                <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>广告图片 URL</label><input value={adImg} onChange={e=>setAdImg(e.target.value)} placeholder="https://..." className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+                <div><label className={`block text-xs font-medium mb-1.5 ${labelClass}`}>点击跳转 URL</label><input value={adLink} onChange={e=>setAdLink(e.target.value)} placeholder="https://..." className={`w-full p-3 rounded outline-none border transition-colors ${inputClass}`}/></div>
+                <div className="mt-auto pt-4"><button className="w-full bg-yellow-500 text-white font-medium py-2.5 rounded-lg text-sm hover:bg-yellow-600 transition-colors shadow-sm">更新广告</button></div>
+              </form>
+            </div>
         </div>
       </div>
     </div>
