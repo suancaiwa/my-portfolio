@@ -82,179 +82,6 @@ const parseMarkdownSafe = (markdownText) => {
   return html;
 };
 
-// --- 子组件：新年烟花祝贺 (透明背景 + 国潮字体) ---
-const NewYearGreeting = ({ onDismiss }) => {
-  const canvasRef = useRef(null);
-  const [opacity, setOpacity] = useState(1);
-
-  useEffect(() => {
-    // 注入书法字体
-    const link = document.createElement('link');
-    link.href = 'https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap';
-    link.rel = 'stylesheet';
-    document.head.appendChild(link);
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    let width = window.innerWidth;
-    let height = window.innerHeight;
-    canvas.width = width;
-    canvas.height = height;
-
-    // 粒子类
-    class Particle {
-      constructor(x, y, color) {
-        this.x = x;
-        this.y = y;
-        this.color = color;
-        const angle = Math.random() * Math.PI * 2;
-        const velocity = Math.random() * 6 + 2; 
-        this.vx = Math.cos(angle) * velocity;
-        this.vy = Math.sin(angle) * velocity;
-        this.alpha = 1;
-        this.friction = 0.96;
-        this.gravity = 0.15;
-      }
-      draw() {
-        ctx.save();
-        ctx.globalAlpha = this.alpha;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, 2.5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-      update() {
-        this.vx *= this.friction;
-        this.vy *= this.friction;
-        this.vy += this.gravity;
-        this.x += this.vx;
-        this.y += this.vy;
-        this.alpha -= 0.015;
-      }
-    }
-
-    // 烟花类
-    class Firework {
-      constructor(x, targetY, color) {
-        this.x = x;
-        this.y = height;
-        this.targetY = targetY;
-        this.color = color;
-        this.vy = -12 - Math.random() * 4; // 上升速度
-        this.exploded = false;
-        this.particles = [];
-      }
-      update() {
-        if (!this.exploded) {
-          this.y += this.vy;
-          this.vy += 0.15;
-          if (this.y <= this.targetY || this.vy >= -2) {
-            this.explode();
-          }
-        } else {
-          this.particles.forEach(p => p.update());
-          this.particles = this.particles.filter(p => p.alpha > 0);
-        }
-      }
-      draw() {
-        if (!this.exploded) {
-          ctx.save();
-          ctx.fillStyle = this.color;
-          ctx.beginPath();
-          ctx.arc(this.x, this.y, 4, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
-        } else {
-          this.particles.forEach(p => p.draw());
-        }
-      }
-      explode() {
-        this.exploded = true;
-        for (let i = 0; i < 80; i++) {
-          this.particles.push(new Particle(this.x, this.y, this.color));
-        }
-      }
-    }
-
-    let fireworks = [];
-    let animationId;
-    const colors = ['#ff4d4d', '#ffd700', '#00ff00', '#00ffff', '#ff00ff', '#ffffff', '#ff9900'];
-
-    const animate = () => {
-      // 关键修改：使用 destination-out 实现透明画布上的拖尾效果
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)'; // 每次清除 10% 的透明度，形成拖尾
-      ctx.fillRect(0, 0, width, height);
-      ctx.globalCompositeOperation = 'source-over';
-
-      if (Math.random() < 0.08) { // 增加发射频率
-        const x = Math.random() * width;
-        const targetY = height * 0.1 + Math.random() * (height * 0.4);
-        const color = colors[Math.floor(Math.random() * colors.length)];
-        fireworks.push(new Firework(x, targetY, color));
-      }
-
-      fireworks.forEach(f => {
-        f.update();
-        f.draw();
-      });
-      fireworks = fireworks.filter(f => !f.exploded || f.particles.length > 0);
-
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animate();
-
-    const handleResize = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      canvas.width = width;
-      canvas.height = height;
-    };
-    window.addEventListener('resize', handleResize);
-
-    const fadeTimer = setTimeout(() => setOpacity(0), 5500);
-    const removeTimer = setTimeout(onDismiss, 6500);
-
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', handleResize);
-      clearTimeout(fadeTimer);
-      clearTimeout(removeTimer);
-      document.head.removeChild(link);
-    };
-  }, [onDismiss]);
-
-  return (
-    <div 
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center transition-opacity duration-1000 ease-out cursor-pointer bg-black/40 backdrop-blur-[2px]" // 半透明背景 + 轻微模糊
-      style={{ opacity }}
-      onClick={() => { setOpacity(0); setTimeout(onDismiss, 500); }}
-    >
-      <canvas ref={canvasRef} className="absolute inset-0 pointer-events-none" />
-      <div className="relative z-10 text-center animate-bounce duration-[3000ms]">
-        <h1 
-          className="text-6xl md:text-8xl font-extrabold text-transparent bg-clip-text bg-gradient-to-b from-[#ffd700] via-[#f59e0b] to-[#b45309] drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] mb-6"
-          style={{ fontFamily: '"Ma Shan Zheng", cursive' }}
-        >
-          新年快乐
-        </h1>
-        <h2 
-          className="text-5xl md:text-7xl font-bold text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] tracking-wider"
-          style={{ fontFamily: '"Ma Shan Zheng", cursive' }}
-        >
-          马到成功！
-        </h2>
-        <p className="text-white/80 text-base mt-12 animate-pulse font-light tracking-widest bg-black/20 px-4 py-1 rounded-full inline-block backdrop-blur-sm">
-          点击任意处开启旅程
-        </p>
-      </div>
-    </div>
-  );
-};
-
 // --- 子组件：Hero Banner ---
 const HeroBanner = ({ user, onViewDetail, onScroll, onRegister }) => (
   <div className="relative mb-8 rounded-2xl overflow-hidden p-8 sm:p-12 text-white shadow-xl group transform transition-all hover:scale-[1.01] duration-500">
@@ -265,10 +92,10 @@ const HeroBanner = ({ user, onViewDetail, onScroll, onRegister }) => (
     <div className="relative z-10 flex flex-col items-start max-w-3xl">
       <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold mb-4 border border-white/30 text-white">
         <Zap size={14} className="fill-yellow-400 text-yellow-400" />
-        <span>NineIce 2.0 更新已上线</span>
+        <span>NineIce 正式上线</span>
       </div>
       <h1 className="text-3xl sm:text-5xl font-extrabold mb-4 tracking-tight leading-tight">
-        {user ? `欢迎回来, ${user.username}!` : '新年快乐'}
+        {user ? `欢迎回来, ${user.username}!` : '探索极客代码世界'}
       </h1>
       <p className="text-lg sm:text-xl text-indigo-100 mb-8 max-w-2xl leading-relaxed">
         博主会不定时在这分享开源项目，大胆表达你的技术见解。分享给身边的伙伴，一起学习，一起进步。
@@ -295,7 +122,7 @@ const InteractivePet = ({ xp, level, darkMode }) => {
   const [message, setMessage] = useState("");
   const [isBouncing, setIsBouncing] = useState(false);
   
-  const quotes = ["新年好！", "马到成功！", "代码无Bug！", "记得多喝水~", "冲刺 15 级大神！"];
+  const quotes = ["暗黑模式好酷！", "记得多喝水~", "你的代码真棒！", "排行榜更新啦！", "冲刺 15 级大神！", "今天学到了什么？"];
 
   const handlePetClick = () => {
     setIsBouncing(true);
@@ -464,7 +291,7 @@ export default function App() {
   const bmobRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [activeTab, setActiveTab] = useState('home'); 
-  const [adConfig, setAdConfig] = useState(null); 
+  const [adConfig, setAdConfig] = useState(null); // 新增广告配置状态
   
   // 核心修复：根据屏幕宽度初始化 Sidebar 状态，手机端默认关闭
   const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
@@ -482,9 +309,6 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
   
-  // 新年祝福状态
-  const [showGreeting, setShowGreeting] = useState(true);
-
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
         const saved = localStorage.getItem('theme');
@@ -582,7 +406,7 @@ export default function App() {
              });
           }
           updateSiteViews(window.Bmob);
-          fetchAdConfig(window.Bmob); 
+          fetchAdConfig(window.Bmob); // 初始化时获取广告配置
         } catch (e) { console.error("Bmob init error", e); }
       }
       setIsLibLoaded(true);
@@ -610,6 +434,7 @@ export default function App() {
     } catch (e) { }
   };
 
+  // 获取广告配置 - 核心修复：忽略 101 错误 (表不存在)
   const fetchAdConfig = async (bmobInstance) => {
     const bmob = bmobInstance || bmobRef.current;
     if (!bmob) return;
@@ -682,10 +507,6 @@ export default function App() {
         darkMode={darkMode}
         toggleDarkMode={toggleDarkMode}
       />
-      
-      {/* 新年烟花覆盖层 */}
-      {showGreeting && <NewYearGreeting onDismiss={() => setShowGreeting(false)} />}
-
       <div className="flex flex-1 overflow-hidden relative">
         {/* 核心修复：手机端 Sidebar 增加遮罩和绝对定位 */}
         {isSidebarOpen && window.innerWidth < 768 && (
@@ -708,7 +529,7 @@ export default function App() {
             totalViews={totalViews} 
             onCheckIn={handleCheckIn} 
             darkMode={darkMode}
-            adConfig={adConfig} 
+            adConfig={adConfig} // 传递广告配置
         />
         
         <main className="flex-1 overflow-y-auto custom-scrollbar relative w-full">
@@ -854,6 +675,9 @@ function Sidebar({ isOpen, activeTab, setActiveTab, currentUser, totalViews, onC
   const isAdmin = currentUser && currentUser.username === ADMIN_USERNAME;
   const isCheckedIn = currentUser && currentUser.lastCheckInDate === (new Date().toLocaleDateString());
 
+  // Mobile: absolute position, z-50, transition transform
+  // Desktop: relative (static), no transform
+  
   const layoutClass = "fixed inset-y-0 left-0 z-50 md:static md:z-auto h-full"; // 手机端fixed, 电脑端static
   const transformClass = isOpen ? "translate-x-0" : "-translate-x-full md:hidden";
 
